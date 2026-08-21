@@ -1,0 +1,5 @@
+interface:
+  display_name: "Settle"
+  short_description: "Plan implementation from code or a blank project"
+policy:
+  allow_implicit_invocation: false

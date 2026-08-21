@@ -1,0 +1,5 @@
+interface:
+  display_name: "Next slice"
+  short_description: "Run one slice of a plan directory, then correct the plan"
+policy:
+  allow_implicit_invocation: false
