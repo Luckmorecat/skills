@@ -64,7 +64,7 @@ When the user reopens an assumption or default, it becomes a question on the cur
 
 ## Facts are yours to find
 
-Grep and read inline for a targeted fact ("is there an error hook", "how does this sibling store state"). Dispatch an Explore subagent for a sweep across many files ("how is every modal in this app structured"). A running sweep is an unsettled prerequisite: ask the rest of the frontier now, and hold only the questions downstream of it.
+Find targeted facts inline. Delegate a bounded discovery task when it needs a broad sweep, several sources, or an independent line of investigation that can run in parallel. Give the subagent the exact question, scope, and evidence expected. Treat its report as a lead: verify plan-shaping claims against the code or primary sources, and never treat external research as code precedent. While it runs, continue the frontier except for decisions that depend on its result.
 
 ## Contradictions
 
