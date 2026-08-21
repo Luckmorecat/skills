@@ -20,7 +20,7 @@ When the project is blank, read [BOOTSTRAP.md](BOOTSTRAP.md) before applying the
 
 If the request is too open to name an observable outcome, a caller or actor, and one demonstrable use case, suggest `$shape-project`, name the missing product decisions, and wait. A blank repository alone is not a reason to redirect: keep a concrete feature request in `settle`.
 
-Treat an approved `$shape-project` brief as the user's intent. It settles product decisions, not facts about implementation. Verify any implementation claim in that brief against code.
+An approved `$shape-project` brief settles intent, never implementation evidence. Verify its implementation claims against code.
 
 ## The inference test
 
