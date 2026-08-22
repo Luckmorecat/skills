@@ -16,13 +16,17 @@ Read `spine.md`, `map.md`, `log.md`, and the lowest-numbered slice file with no 
 
 ## 2. Build
 
-Hand the slice to `$implement`, or to whatever build-and-commit workflow the project provides.
+Implement the slice directly.
 
 - The slice's **Build** section is the work contract.
 - `spine.md`'s **Out of scope** is the boundary, and it holds even when the code makes an excursion look cheap.
 - The slice's **Verify** command is what proves the slice green.
 
-A fact worth keeping past this work goes into the code, a test, or the commit message, so name it before `$implement` commits. Nothing in the plan directory survives the plan, and a test that fails when someone retries a dead end enforces where a note would only inform.
+Use the project's test-driven workflow at the slice's approved seams when one is available. Run typechecking and focused tests regularly, then run the full relevant suite once at the end.
+
+When the implementation is green, review the complete change against repository rules and the slice contract. Use the project's code-review workflow when one is available; otherwise inspect the diff directly. Fix every blocking finding, rerun the affected checks, and commit the work to the current branch.
+
+A fact worth keeping past this work goes into the code, a test, or the commit message, so name it before committing. Nothing in the plan directory survives the plan, and a test that fails when someone retries a dead end enforces where a note would only inform.
 
 ## 3. Reconcile
 
