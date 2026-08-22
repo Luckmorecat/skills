@@ -1,6 +1,6 @@
 # Striker skills
 
-Four explicit workflow skills for shaping an idea, planning implementation, and delivering one green slice at a time.
+Five workflow skills for shaping an idea, planning implementation, delivering one green slice at a time, and reviewing changes.
 
 ## Skills
 
@@ -10,6 +10,7 @@ Four explicit workflow skills for shaping an idea, planning implementation, and 
 | `settle` | Resolve implementation decisions and write a sliced plan. |
 | `brief` | Plan a small task that can land green in one session. |
 | `next-slice` | Implement one slice from an approved `settle` plan. |
+| `code-review` | Review a pinned change against repository standards and an optional approved plan. |
 
 ## Install with `npx skills`
 
@@ -19,7 +20,7 @@ List the skills from this local checkout:
 npx skills add ~/development/striker-skills --list
 ```
 
-Install all four globally for Codex:
+Install all five globally for Codex:
 
 ```bash
 npx skills add ~/development/striker-skills --global --agent codex --skill '*' --yes
