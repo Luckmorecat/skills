@@ -22,9 +22,9 @@ Implement the slice directly.
 - `spine.md`'s **Out of scope** is the boundary, and it holds even when the code makes an excursion look cheap.
 - The slice's **Verify** command is what proves the slice green.
 
-Use the project's test-driven workflow at the slice's approved seams when one is available. Run typechecking and focused tests regularly, then run the full relevant suite once at the end.
+Use `$tdd` at the slice's approved seams when it is available; otherwise follow the same test-first loop directly. Run typechecking and focused tests regularly, then run the full relevant suite once at the end.
 
-When the implementation is green, review the complete change against repository rules and the slice contract. Use the project's code-review workflow when one is available; otherwise inspect the diff directly. Fix every blocking finding, rerun the affected checks, and commit the work to the current branch.
+When the implementation is green, use `$code-review` when it is available to review the complete change against repository rules and the slice contract; otherwise inspect the diff directly. Fix every blocking finding, rerun the affected checks, and commit the work to the current branch.
 
 A fact worth keeping past this work goes into the code, a test, or the commit message, so name it before committing. Nothing in the plan directory survives the plan, and a test that fails when someone retries a dead end enforces where a note would only inform.
 
