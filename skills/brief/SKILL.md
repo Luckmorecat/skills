@@ -1,10 +1,10 @@
 ---
 name: brief
-description: Interview the user on the few forks a small task genuinely has, then write one plan document to implement from.
+description: Interview the user on the few forks a small task genuinely has, then present one implementation brief.
 disable-model-invocation: true
 ---
 
-One task, one green state, one document. Every decision you can settle from the codebase you settle yourself and report as an assumption. A question the codebase already answers is a question you failed to research.
+One task, one green state, one brief. Every decision you can settle from the codebase you settle yourself and report as an assumption. A question the codebase already answers is a question you failed to research.
 
 The code is the only source of truth. Every ledger line cites a `file:line` you read this session. Notes, docs, and the user's recollection supply leads worth checking; the code supplies the answer.
 
@@ -63,16 +63,7 @@ A short interview thrown away costs less than a document built on the wrong shap
 
 ## Exit
 
-The session is done when every enumerated decision is either a user answer or a ledger line carrying evidence. Present the brief and wait for approval.
-
-On approval, write it where `settle`'s plan directories live, so one place holds both:
-
-```bash
-repo=$(basename "$(git rev-parse --show-toplevel)")
-mkdir -p "/tmp/plans/$repo"
-```
-
-Write one file, `/tmp/plans/<repo>/<date>-<slug>.md`, taking the date from `date +%F`:
+The session is done when every enumerated decision is either a user answer or a ledger line carrying evidence. Present the complete brief with these sections, then wait for the user's response:
 
 - **Goal** — what the work delivers, in a few lines.
 - **Decisions** — each answer from the interview, with the reasoning that produced it.
@@ -81,7 +72,3 @@ Write one file, `/tmp/plans/<repo>/<date>-<slug>.md`, taking the date from `date
 - **Build** — the change, as behaviour rather than keystrokes.
 - **Paths** — the files to read and write, one line each on what changes there.
 - **Verify** — the command that proves the work green.
-
-There is no log. One session does this work and commits it, which makes the commit message the record, and anything worth keeping past the task belongs there or in a test.
-
-Tell the user the path and that `implement` builds it.
