@@ -18,12 +18,12 @@ Find its **nearest precedent** first: search the feature folder you are changing
 | --- | --- |
 | One established way | Resolve. Log it with evidence. |
 | Two or more live patterns, nearest layer split | **Ask.** A real fork. |
-| No precedent, and the choice shows up in product behaviour, the data contract, or an API | **Ask.** |
+| No precedent, and the choice shows up in product behaviour, the data contract, an API, security, or deployment | **Ask.** |
 | No precedent, and the choice is invisible or cheap to reverse | Resolve. Log it. |
 
-Decisions the test resolves nearly every time: error handling, loading and empty states, toasts, naming, file placement, barrel exports, i18n key placement, styling, test location and framework, enum-versus-union, the state layer, logging and analytics wiring.
+A brief covers one session, so "cheap to reverse" is measured inside it.
 
-Decisions that survive it: product behaviour at a genuine fork, scope boundaries, the data contract and who changes the backend, migration and backfill of existing data, anything irreversible or cross-cutting, and tradeoffs with no local precedent.
+Decisions the test resolves nearly every time: error handling, loading and empty states, toasts, naming, file placement, barrel exports, i18n key placement, styling, test location and framework, enum-versus-union, the state layer, logging and analytics wiring.
 
 Discover conventions live each session. A convention list written into this file goes stale; the codebase cannot.
 
@@ -63,7 +63,7 @@ A short interview thrown away costs less than a document built on the wrong shap
 
 ## Exit
 
-The session is done when every enumerated decision is either a user answer or a ledger line carrying evidence. Present the complete brief with these sections, then wait for the user's response:
+The session is done when every enumerated decision is either a user answer or a ledger line carrying evidence. Present the complete brief with these sections and stop; a handoff happens only when the user asks for one, and [HANDOFF.md](HANDOFF.md) says how.
 
 - **Goal** — what the work delivers, in a few lines.
 - **Decisions** — each answer from the interview, with the reasoning that produced it.
@@ -71,4 +71,4 @@ The session is done when every enumerated decision is either a user answer or a 
 - **Out of scope** — what was considered and excluded, so the build does not reopen it.
 - **Build** — the change, as behaviour rather than keystrokes.
 - **Paths** — the files to read and write, one line each on what changes there.
-- **Verify** — the command that proves the work green.
+- **Verify** — the command that proves the work green, and where in the environment you found it: a `package.json` script, a Makefile target, a documented command. The session that implements this runs it as the gate, so a command you did not find is a gate that will not hold.

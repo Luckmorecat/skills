@@ -4,9 +4,9 @@ description: Turn an open project idea into an approved intent brief that settle
 disable-model-invocation: true
 ---
 
-Shape product intent before implementation planning. Use the user's attention on externally meaningful choices, finish with a brief they approve, then hand that brief to `$settle`.
+Shape product intent before implementation planning. Use the user's attention on externally meaningful choices, finish with a brief they approve, then hand that brief to the `settle` skill.
 
-This skill decides what the project should do. It does not choose file paths, code structure, test placement, or other implementation details. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent. Leave their implementation to `$settle`.
+This skill decides what the project should do. It does not choose file paths, code structure, test placement, or other implementation details. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent. Leave their implementation to `settle`.
 
 ## Find the product frontier
 
@@ -28,6 +28,8 @@ Recommended: <answer and consequence>
 
 When the user reopens an `I<n>` decision, return it to the frontier.
 
+When the user defers a question to you, record your recommendation as the decision, with its reason and the fact that they deferred it. Deferring answers the fork; it does not leave one open.
+
 ## Completion
 
 The shape is ready when all of these are concrete:
@@ -42,18 +44,23 @@ Implementation choices may remain open. Present the complete intent brief and wa
 
 ## Write the approved brief
 
-Create the brief outside the project. Derive the project name from the Git root when available, otherwise from the current directory:
+Create the brief outside the project, so a commit of it is out of reach rather than merely against the rules. Override the root with `STRIKER_ROOT`:
 
 ```bash
-if project_root=$(git rev-parse --show-toplevel 2>/dev/null); then
-  project=$(basename "$project_root")
+striker_root="${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}"
+if repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
+  repo=$(basename "$repo_root")
 else
-  project=$(basename "$PWD")
+  repo=$(basename "$PWD")
 fi
-mkdir -p "/tmp/shapes/$project/$(date +%F)-<slug>"
+slug="oauth-device-flow"   # replace with a short kebab-case summary
+mkdir -p "$striker_root/shapes/$repo"
+mkdir "$striker_root/shapes/$repo/$slug-$(date +%F)"
 ```
 
-Write `/tmp/shapes/<project>/<date>-<slug>/shape.md` with:
+The leaf is created without `-p` so an existing directory stops you rather than being written over: choose a more specific slug and retry.
+
+Write `shape.md` in that directory with:
 
 - **Intent**: the outcome and why it matters.
 - **Actor or caller**: who receives the outcome.
@@ -64,4 +71,4 @@ Write `/tmp/shapes/<project>/<date>-<slug>/shape.md` with:
 - **Out of scope**: exclusions for the first release.
 - **Unresolved**: `None`. An unresolved product fork means the interview is not complete.
 
-Tell the user the path and to run `$settle <path-to-shape.md>` next.
+Tell the user the absolute path and to invoke `settle` with it next.

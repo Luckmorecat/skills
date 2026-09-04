@@ -1,0 +1,5 @@
+interface:
+  display_name: "Land"
+  short_description: "Implement an approved plan or brief and commit it green"
+policy:
+  allow_implicit_invocation: false

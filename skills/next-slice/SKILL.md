@@ -10,33 +10,37 @@ Existing code is the only source of truth for claims about current behaviour. Th
 
 ## 1. Open
 
-Take the plan directory the user names. Otherwise take the most recent under `/tmp/plans/<repo>/`. Derive `<repo>` from the Git root when `git rev-parse --show-toplevel` succeeds, or from the current directory name when it does not. Stop and ask when neither resolves: an absent directory means the plan was reaped or never written, and reconstructing the work is a different job than running a slice of it.
+Take the path the user names: `spine.md`, or the directory holding it. That directory is the plan. When no path is named, ask.
 
-Read `spine.md`, `map.md`, `log.md`, and the lowest-numbered slice file with no entry in the log. Read no other slice file. A slice is self-sufficient by design, so reading ahead spends context on work that is not yours and tempts you into building it early.
+Read `spine.md`, `map.md`, `log.md`, and the lowest-numbered slice file with no entry in the log. Read no other slice file: reading ahead tempts you into building work that is not yours yet.
+
+Record this slice's fixed point with `git rev-parse HEAD 2>/dev/null || git hash-object -t tree /dev/null`, which yields the empty tree in a repository whose first commit has not landed. When the tree is already dirty, record `git status --porcelain` too and carry it to the review.
 
 ## 2. Build
 
-Implement the slice directly.
-
 - The slice's **Build** section is the work contract.
 - `spine.md`'s **Out of scope** is the boundary, and it holds even when the code makes an excursion look cheap.
-- The slice's **Verify** command is what proves the slice green.
+- The slice's **Verify** command is what proves the slice green. A verification marked `to create` does not exist yet, and creating it is part of this slice's Build.
 
-Use `$tdd` at the slice's approved seams when it is available; otherwise follow the same test-first loop directly. Run typechecking and focused tests regularly, then run the full relevant suite once at the end.
+Use the `tdd` skill at the slice's approved seams when it is available; otherwise follow the same test-first loop directly. Run typechecking and focused tests regularly, then run the full relevant suite once at the end.
 
-When the implementation is green, use `$code-review` when it is available to review the complete change against repository rules and the slice contract; otherwise inspect the diff directly. Fix every blocking finding, rerun the affected checks, and commit the work to the current branch.
+When the implementation is green, invoke the `code-review` skill when it is available, passing the fixed point you recorded, the pre-existing snapshot when you took one, and the slice file plus `spine.md`'s **Out of scope** as the work contract. Otherwise inspect the diff against those same two axes directly. Fix every blocking finding and rerun the verification in full, so the tree you commit is the tree you verified.
 
-A fact worth keeping past this work goes into the code, a test, or the commit message, so name it before committing. Nothing in the plan directory survives the plan, and a test that fails when someone retries a dead end enforces where a note would only inform.
+## 3. Commit
 
-## 3. Reconcile
+Commit the work to the current branch.
 
-The work reveals things the interview could not know. Each one goes to one of two places.
+A fact worth keeping past this work goes into the code, a test, or the commit message, so name it before committing. A test that fails when someone retries a dead end enforces where a note would only inform.
+
+## 4. Reconcile
+
+The work reveals what the interview could not know. Each finding goes one of two ways.
 
 **The plan holds.** Record it in the log and carry on.
 
-**The plan is wrong.** Edit `spine.md` now, while you still know why. A false ledger line or a stale decision misleads every slice after this one, and the cost compounds with each. Edit `map.md` too when this slice moved, renamed, or deleted something it points at: a stale path sends the next session to a file that is not there, which is the one failure a map cannot survive.
+**The plan is wrong.** Edit `spine.md` now, while you still know why. Edit `map.md` too when this slice moved, renamed, or deleted something it points at: a stale path sends the next session to a file that is not there.
 
-When this slice creates a planned traversal, replace that part of `map.md` with the paths the code now proves. When code invalidates a `D<n>` default, correct it without asking unless the correction changes approved behaviour, a public contract, persistent data, or a later slice.
+When this slice creates a planned traversal, replace that part of `map.md` with the paths the code now proves. When code invalidates a `D<n>` default, correct it without asking unless the correction changes approved behaviour, a public contract, persistent data, security, deployment, authentication, authorization, privacy, an external service, ongoing cost, or a later slice.
 
 A ledger assumption the code disproved reports in the shape the interview used, and only when a later slice would do something different because of it:
 
@@ -44,15 +48,15 @@ A ledger assumption the code disproved reports in the shape the interview used, 
 ⚠️ <the assumption>, from <spine.md ledger number>. The code <what it actually does> · <file:line>. Which holds?
 ```
 
-For claims about current behaviour, the code wins. A disproved assumption that changes nothing downstream needs no question. Correct the spine and log it.
+A disproved assumption that changes nothing downstream needs no question. Correct the spine and log it.
 
-## 4. Log
+## 5. Log
 
 Append one entry to `log.md`: what landed, what deviated from the plan and why, and what the next slice needs to know.
 
 A log, not a report. The next session pays context for every line, and it reads this to start work rather than to admire yours.
 
-## 5. Hand off
+## 6. Hand off
 
 Name the slice that comes next and stop. A second slice in the same session spends the context that slicing exists to protect.
 

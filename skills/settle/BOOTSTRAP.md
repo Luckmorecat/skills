@@ -17,10 +17,10 @@ When the product itself is still open, report what is missing and suggest:
 
 ```text
 This needs product shaping before implementation planning: <missing decisions>.
-Run `$shape-project`, approve its intent brief, then pass that brief to `$settle`.
+Run the `shape-project` skill, approve its intent brief, then pass that brief to `settle`.
 ```
 
-Wait for the user. Do not invoke `$shape-project` on their behalf. Do not redirect a concrete request merely because its directory is empty.
+Wait for the user. Do not invoke `shape-project` on their behalf. Do not redirect a concrete request merely because its directory is empty.
 
 ## Inventory the absence
 
@@ -32,7 +32,7 @@ State the evidence state once:
 Evidence state: blank project. No implementation, build configuration, or tests found.
 ```
 
-Do not invent empty `file:line` citations.
+Every `file:line` citation names a line you read. A blank project yields none, so its ledger reads `None`.
 
 ## Default narrowly
 
@@ -47,6 +47,8 @@ Ask when a choice affects the framework, runtime, deployment, public contracts, 
 Prefer a walking use case: initialize the minimum project, implement one observable path, and verify it in the same slice.
 
 Use a separate bootstrap slice only when the toolchain cannot reach green at a use-case boundary. Its verification must prove the project installs, builds or typechecks where applicable, runs its tests, and passes one smoke check. Keep later infrastructure out.
+
+A blank project has no environment to source a verification from, so the bootstrap slice's own commands are marked `to create` and the slice creates them.
 
 In the plan:
 

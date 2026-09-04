@@ -18,9 +18,7 @@ Before enumerating decisions, classify the project:
 
 When the project is blank, read [BOOTSTRAP.md](BOOTSTRAP.md) before applying the inference test.
 
-If the request is too open to name an observable outcome, a caller or actor, and one demonstrable use case, suggest `$shape-project`, name the missing product decisions, and wait. A blank repository alone is not a reason to redirect: keep a concrete feature request in `settle`.
-
-An approved `$shape-project` brief settles intent, never implementation evidence. Verify its implementation claims against code.
+If the request is too open to name an observable outcome, a caller or actor, and one demonstrable use case, suggest the `shape-project` skill, name the missing product decisions, and wait. A blank repository alone is not a reason to redirect: keep a concrete feature request in `settle`.
 
 ## The inference test
 
@@ -36,8 +34,6 @@ Find its **nearest precedent** first: search the feature folder you are changing
 | No precedent, and the choice is invisible outside implementation and reversible within one slice | Resolve as `D<n>`. Record the reason and reversal cost. |
 
 With a local precedent, the test resolves error handling, loading and empty states, toasts, naming, file placement, exports, i18n key placement, styling, test location, types, state, logging, and analytics wiring. Without a precedent, apply the table rather than assuming these remain cheap.
-
-Decisions that survive it include product behaviour at a genuine fork, scope boundaries, framework and runtime choices for a blank project, data ownership, migration and backfill, anything hard to reverse or cross-cutting, and tradeoffs with no local precedent.
 
 Discover conventions live each session. A convention list written into this file goes stale; the codebase cannot.
 
@@ -88,14 +84,18 @@ In a blank project, prefer a thin demonstrable use case that initializes only th
 
 Slices run in order, and each names the cheapest verification that proves it green — an affected-only typecheck with the specs it touched, ahead of a full build whose output costs the next session's context.
 
+Source each verification from the environment — a `package.json` script, a Makefile target, a documented command — and cite where you found it. A command you did not find is a command the next session cannot run. When it does not exist yet, mark it `to create` and name the slice that creates it.
+
 A complete mechanical change (a rename, an enum migration, a signature change) is a legitimate slice, and it runs **first**. Left until last, it has to rewrite the files the earlier slices just wrote.
 
 Size is a smell, never a cut. A slice reaching across many folders means the use case wants decomposing: ask the user whether to emit that node's children. The recorded tree makes a deeper emit free, in this session or a later one that reopens the plan directory.
 
 ## Exit
 
-The session is done when the frontier is empty, every enumerated decision is a user answer, a code-backed `A<n>` assumption, or a reasoned `D<n>` default, and every slice has a command that will prove it green. Present the plan and wait for approval.
+The session is done when the frontier is empty, every enumerated decision is a user answer, a code-backed `A<n>` assumption, or a reasoned `D<n>` default, and every slice has a command that will prove it green.
+
+Present the goal, the ordered slices with each one's verification, and the `D<n>` defaults. Then wait for approval.
 
 On approval, write the plan directory specified in [PLAN-FORMAT.md](PLAN-FORMAT.md).
 
-Tell the user the directory path and that `next-slice` runs the first slice.
+Tell the user the absolute directory path and that `next-slice` runs the first slice.
