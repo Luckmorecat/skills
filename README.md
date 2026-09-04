@@ -1,6 +1,6 @@
 # Striker skills
 
-Six workflow skills for shaping an idea, planning implementation, delivering one green slice at a time, and reviewing changes.
+Seven workflow skills for shaping an idea, planning implementation, delivering one green slice at a time, and reviewing and committing changes.
 
 ## Skills
 
@@ -12,6 +12,7 @@ Six workflow skills for shaping an idea, planning implementation, delivering one
 | `land` | Implement an approved plan or brief and commit it green. |
 | `next-slice` | Implement one slice from an approved `settle` plan. |
 | `code-review` | Review a pinned change against repository standards and an optional approved plan. |
+| `commit` | Group changes into semantic commits and create them. |
 
 ## Workflow
 
@@ -21,6 +22,7 @@ Six workflow skills for shaping an idea, planning implementation, delivering one
 | A feature spanning more than one session | `settle`, then `next-slice` once per slice |
 | A small change that fits one session | `brief`, then `land` |
 | Work is in and you want it checked | `code-review` |
+| A worktree of changes needs to land as commits | `commit` |
 
 `land` and `next-slice` both invoke `code-review` themselves. Run it directly to review a branch, a pull request, or anything since a commit.
 
@@ -51,7 +53,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all six globally for Codex:
+Install all seven globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -68,7 +70,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all six globally for Claude Code:
+Install all seven globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
