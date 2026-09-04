@@ -43,43 +43,36 @@ Export `STRIKER_ROOT` from your shell profile rather than per invocation. The pl
 
 ## Install with `npx skills`
 
-List the skills from a local checkout:
+Install directly from the public [Luckmorecat/skills](https://github.com/Luckmorecat/skills) repository—no local checkout is required.
+
+List the available skills:
 
 ```bash
-npx skills add . --list
+npx skills add Luckmorecat/skills --list
 ```
 
 Install all six globally for Codex:
 
 ```bash
-npx skills add . --global --agent codex --skill '*' --yes
+npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
 ```
 
 Install selected skills by repeating `--skill`:
 
 ```bash
-npx skills add . --global --agent codex \
+npx skills add Luckmorecat/skills --global --agent codex \
   --skill settle \
   --skill next-slice \
   --yes
 ```
 
-After publishing the repository, replace the local path with its GitHub shorthand or Git URL:
-
-```bash
-npx skills add <owner>/striker-skills --global --agent codex --skill '*' --yes
-```
-
 ## Install for Claude Code
 
-Claude Code reads personal skills from `~/.claude/skills/` and project skills from `.claude/skills/`:
+Install all six globally for Claude Code:
 
 ```bash
-mkdir -p ~/.claude/skills
-cp -R skills/*/ ~/.claude/skills/
+npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
 ```
-
-Run `npx skills add . --list` to see whether the installer targets Claude Code directly in your version.
 
 ## Portability
 
