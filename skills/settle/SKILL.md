@@ -4,50 +4,46 @@ description: Settle implementation decisions, question the user only on real for
 disable-model-invocation: true
 ---
 
-A grilling that spends the user's attention only on decisions that are genuinely theirs. Settle the rest from the nearest code precedent or, where no precedent exists, as an explicit reversible default.
+A grilling that spends the user's attention only on decisions that are genuinely theirs. Settle the rest from the nearest code precedent or, where none exists, as an explicit reversible default.
 
-Existing code is the only source of truth for claims about existing behaviour. User answers are the source of truth for desired behaviour. Every code-backed ledger line cites a `file:line` read this session. Notes, docs, and recollection supply leads worth checking. Their implementation claims remain unverified until the code confirms them. Absence of code proves only that no precedent exists.
+Code is the only source of truth for current behaviour; user answers are the source of truth for desired behaviour. Every code-backed line cites a `file:line` read this session.
 
 ## Evidence state
 
-Before enumerating decisions, classify the project:
+Classify the project before enumerating decisions, and state the classification in the first round:
 
 - **Established**: relevant implementation and conventions exist.
 - **Sparse**: tooling or a skeleton exists, but the feature has no nearby precedent.
-- **Blank**: no implementation, build configuration, or tests exist. Git metadata and prose documents do not count as implementation precedent.
+- **Blank**: no implementation, build configuration, or tests. Git metadata and prose documents are not implementation precedent.
 
-When the project is blank, read [BOOTSTRAP.md](BOOTSTRAP.md) before applying the inference test.
+Blank projects follow [BOOTSTRAP.md](BOOTSTRAP.md) as well as this file.
 
-If the request is too open to name an observable outcome, a caller or actor, and one demonstrable use case, suggest the `shape-project` skill, name the missing product decisions, and wait. A blank repository alone is not a reason to redirect: keep a concrete feature request in `settle`.
+A concrete feature request stays in `settle` whatever the repository holds; an open runtime, framework, or storage fork is an implementation decision and belongs in the interview. Redirect only when the product itself is open: if the request cannot name an observable outcome, an actor or caller, one demonstrable use case, and a boundary for the first green slice, report the missing product decisions, point at the `shape-project` skill, and wait.
 
 ## The inference test
 
-Enumerate every decision the work depends on. Put each through this test before it earns a place in a round.
+Enumerate every decision the work depends on, the small ones included: error handling, loading and empty states, naming, file placement, styling, test location, types, logging. Each decision passes this test before it earns a place in a round.
 
-Find its **nearest precedent** first: search the feature folder you are changing, then its parent, then the repo. The nearest layer that settles the decision wins. A large codebase carries competing patterns repo-wide while the folder you are touching has already picked one, so a repo-wide search reports a tie where the local answer is plain. Escalate to a question only when the *nearest* layer is split.
+Find its **nearest precedent**: the feature folder you are changing, then its parent, then the repo. The nearest layer that settles the decision wins, so a repo-wide tie is not a fork while the local folder has already picked. Escalate to a question only when the nearest layer is split.
 
 | What you find | What you do |
 | --- | --- |
 | One established way | Resolve as `A<n>`. Cite the code. |
-| Two or more live patterns, nearest layer split | **Ask.** A real fork. |
-| No precedent, and the choice affects product behaviour, a public contract, persistent data, security, deployment, or several slices | **Ask.** |
-| No precedent, and the choice is invisible outside implementation and reversible within one slice | Resolve as `D<n>`. Record the reason and reversal cost. |
+| Two or more live patterns at the nearest layer | **Ask.** A real fork. |
+| No precedent, and the choice touches product behaviour, a public contract, persistent data, security, deployment, or several slices | **Ask.** |
+| No precedent, and the choice is invisible outside the implementation and reversible within one slice | Resolve as `D<n>`. Record the reason and reversal cost. |
 
-With a local precedent, the test resolves error handling, loading and empty states, toasts, naming, file placement, exports, i18n key placement, styling, test location, types, state, logging, and analytics wiring. Without a precedent, apply the table rather than assuming these remain cheap.
-
-Discover conventions live each session. A convention list written into this file goes stale; the codebase cannot.
+Absence of code proves only that no precedent exists.
 
 ## Rounds
 
-Work the decisions as a tree. The **frontier** is every decision whose prerequisites are settled, so you can ask without guessing at an answer you have not heard. Ask the whole frontier in one round, then wait. A question whose answer depends on another question open in this round belongs to a later round.
+Work the decisions as a tree. The **frontier** is every decision whose prerequisites are settled. Ask the whole frontier in one round, then wait; a question whose answer depends on another question open this round belongs to the next. There is no question budget: if eight genuine forks survive the test, ask eight.
 
-There is no question budget. If eight genuine forks survive the inference test, ask eight.
-
-Each round prints the code-backed assumptions and no-precedent defaults new to that round, then the questions:
+Each round prints the `A<n>` and `D<n>` lines new to it, then the questions, as plain text in exactly this shape:
 
 ```
 Assumed from the codebase; reopen any by number
-A1. Errors surface through useCommonErrorHandling · <the file:line you actually found it in>
+A1. Errors surface through useCommonErrorHandling · <the file:line you read>
 
 Defaults where no precedent exists; reopen any by number
 D1. Put feature tests beside their source files · no precedent; local and reversible within this slice
@@ -56,11 +52,11 @@ Q1. <title>: <body, options>
 Recommended: <your answer and why>
 ```
 
-When the user reopens an assumption or default, it becomes a question on the current frontier.
+The labels are the interface. Number them once per session, never reuse one, and keep them in the round's text: a question-picker tool drops them. A reopened `A<n>` or `D<n>` becomes a question on the current frontier. When the user defers a question to you, your recommendation becomes the decision, recorded with its reason and the deferral.
 
-## Facts are yours to find
+## Discovery
 
-Find targeted facts inline. Delegate a bounded discovery task when it needs a broad sweep, several sources, or an independent line of investigation that can run in parallel. Give the subagent the exact question, scope, and evidence expected. Treat its report as a lead: verify plan-shaping claims against the code or primary sources, and never treat external research as code precedent. While it runs, continue the frontier except for decisions that depend on its result.
+Find targeted facts inline. Delegate a bounded discovery task when it needs a broad sweep, several sources, or an independent line of investigation that can run in parallel. Give the subagent the exact question, scope, and evidence expected, and continue the frontier while it runs, holding only the decisions that depend on its result. External research is never code precedent.
 
 ## Contradictions
 
@@ -70,32 +66,22 @@ Every account of how the code works is a claim to check, whatever its source: th
 ⚠️ <the claim>, from <source>. The code <what it actually does> · <file:line>. Which holds?
 ```
 
-For claims about current behaviour, the code wins. When a note or doc loses, record that line as stale so it gets fixed. A deliberate request to change current behaviour is a decision, not a contradiction.
-
-The same reading feeds both directions: the inference test finds what the code already decides, and this finds where the code contradicts what you were told.
+The code wins on current behaviour. When a note or doc loses, record that line as stale so it gets fixed. A deliberate request to change current behaviour is a decision, not a contradiction.
 
 ## Slices
 
 The interview produces a tree of **use cases**: things a user can do and you can demonstrate. Record the tree at full depth and emit slices at depth one. One slice is one session's work.
 
-Every slice ends **green**: the code compiles and its tests pass. A slice that cannot end green merges into its neighbour, even when that makes it large. Green states exist only at use-case boundaries, which is why the tree decides the seams and size never does.
+Every slice ends **green**: the code compiles and its tests pass. Green states exist only at use-case boundaries, so the tree decides the seams and size never does. A slice that cannot end green merges into its neighbour, even when that makes it large. A slice reaching across many folders means the use case wants decomposing: ask the user whether to emit that node's children.
 
-In a blank project, prefer a thin demonstrable use case that initializes only the tooling it needs. When setup cannot share a green boundary with that use case, allow one bootstrap slice first. It must leave a runnable project with its build, typecheck where applicable, test command, and a smoke check passing. It may not add infrastructure for later un-emitted use cases.
+Slices run in order. A complete mechanical change (a rename, an enum migration, a signature change) is a legitimate slice and runs **first**; left until last, it rewrites the files the earlier slices just wrote.
 
-Slices run in order, and each names the cheapest verification that proves it green — an affected-only typecheck with the specs it touched, ahead of a full build whose output costs the next session's context.
-
-Source each verification from the environment — a `package.json` script, a Makefile target, a documented command — and cite where you found it. A command you did not find is a command the next session cannot run. When it does not exist yet, mark it `to create` and name the slice that creates it.
-
-A complete mechanical change (a rename, an enum migration, a signature change) is a legitimate slice, and it runs **first**. Left until last, it has to rewrite the files the earlier slices just wrote.
-
-Size is a smell, never a cut. A slice reaching across many folders means the use case wants decomposing: ask the user whether to emit that node's children. The recorded tree makes a deeper emit free, in this session or a later one that reopens the plan directory.
+Each slice names the cheapest verification that proves it green: an affected-only typecheck with the specs it touched, ahead of a full build whose output costs the next session's context. Source the command from the environment (a `package.json` script, a Makefile target, a documented command) and cite where you found it. A command you did not find is a command the next session cannot run. When it does not exist yet, mark it `to create` and name the slice that creates it.
 
 ## Exit
 
-The session is done when the frontier is empty, every enumerated decision is a user answer, a code-backed `A<n>` assumption, or a reasoned `D<n>` default, and every slice has a command that will prove it green.
+The session is done when the frontier is empty, every enumerated decision is a user answer, a code-backed `A<n>`, or a reasoned `D<n>`, and every slice has a command that will prove it green.
 
-Present the goal, the ordered slices with each one's verification, and the `D<n>` defaults. Then wait for approval.
+Present the goal, the ordered slices with their verifications, and the `D<n>` defaults. Wait for approval.
 
-On approval, write the plan directory specified in [PLAN-FORMAT.md](PLAN-FORMAT.md).
-
-Tell the user the absolute directory path and that `next-slice` runs the first slice.
+On approval, write the plan directory specified in [PLAN-FORMAT.md](PLAN-FORMAT.md). Tell the user the absolute directory path and that `next-slice` runs the first slice.

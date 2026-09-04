@@ -1,34 +1,32 @@
 ---
 name: shape-project
-description: Turn an open project idea into an approved intent brief that settle can plan.
+description: Turn an open project idea into an approved shape that settle can plan.
 disable-model-invocation: true
 ---
 
-Shape product intent before implementation planning. Use the user's attention on externally meaningful choices, finish with a brief they approve, then hand that brief to the `settle` skill.
+Shape product intent before implementation planning. Spend the user's attention on externally meaningful choices, finish with a shape they approve, then hand it to the `settle` skill.
 
-This skill decides what the project should do. It does not choose file paths, code structure, test placement, or other implementation details. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent. Leave their implementation to `settle`.
+This skill decides what the project should do. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent; their implementation, along with file paths, code structure, and test placement, is `settle`'s.
 
 ## Find the product frontier
 
-Build a decision tree from the user's idea. The frontier contains every product decision whose prerequisites are already settled. Ask the whole frontier in one round, then wait. Hold questions whose meaning depends on an answer still open in that round.
+Build a decision tree from the user's idea. The **frontier** is every product decision whose prerequisites are settled. Ask the whole frontier in one round, then wait; a question whose meaning depends on an answer still open this round belongs to the next.
 
-A question belongs here when its answer changes an observable outcome, the actor or caller, a use case, data responsibility, a hard operating constraint, or the first release boundary. Propose a concrete recommendation for each question. Do not run a fixed questionnaire or ask about capabilities the stated use cases do not need.
+A question belongs here when its answer changes an observable outcome, the actor or caller, a use case, data responsibility, a hard operating constraint, or the first release boundary. Ask only what the stated use cases need, and propose a concrete recommendation for each question.
 
 Use specific examples to expose ambiguity. "Can two people edit the same item?" is useful when collaboration is in scope. "What consistency model do you want?" is premature implementation language unless the user's scenario makes it a product concern.
 
-Print each round as:
+Print each round as plain text in exactly this shape:
 
 ```text
-Settled intent
+Settled intent; reopen any by number
 I1. <decision already established and why>
 
 Q1. <product fork and its concrete options>
 Recommended: <answer and consequence>
 ```
 
-When the user reopens an `I<n>` decision, return it to the frontier.
-
-When the user defers a question to you, record your recommendation as the decision, with its reason and the fact that they deferred it. Deferring answers the fork; it does not leave one open.
+The labels are the interface. Number them once per session, never reuse one, and keep them in the round's text: a question-picker tool drops them. A reopened `I<n>` returns to the frontier. When the user defers a question to you, your recommendation becomes the decision, recorded with its reason and the deferral; deferring answers the fork.
 
 ## Completion
 
@@ -40,11 +38,11 @@ The shape is ready when all of these are concrete:
 - hard constraints and data responsibility that affect those use cases;
 - what is out of scope.
 
-Implementation choices may remain open. Present the complete intent brief and wait for approval.
+Implementation choices may remain open. Present the complete shape and wait for approval.
 
-## Write the approved brief
+## Write the approved shape
 
-Create the brief outside the project, so a commit of it is out of reach rather than merely against the rules. Override the root with `STRIKER_ROOT`:
+Create it outside the project, so a commit of it is out of reach rather than merely against the rules. Override the root with `STRIKER_ROOT`:
 
 ```bash
 striker_root="${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}"

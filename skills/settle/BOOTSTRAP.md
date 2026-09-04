@@ -1,59 +1,13 @@
 # Blank projects
 
-Read this only when `settle` finds no implementation, build configuration, or tests.
+Read this when `settle` finds no implementation, build configuration, or tests. Check hidden project files before concluding that.
 
-## Decide whether to shape first
+## Ask wider
 
-Continue in `settle` when the request provides enough intent to name:
+With nothing local to settle them, the framework, runtime, storage, external services, and ongoing cost belong to the user, and every later slice inherits them. Ask the ones the requested use cases need. Folder names, local naming, test placement once the test tool is chosen, and similarly local organization stay `D<n>` defaults.
 
-- an observable outcome;
-- the actor or caller that receives it;
-- at least one demonstrable use case;
-- a boundary for the first green slice.
+## The first green state
 
-The request may leave runtime, framework, storage, and other implementation forks open. Those belong in the `settle` interview.
+Prefer a thin demonstrable use case that initializes only the tooling it needs. When setup cannot share a green boundary with that use case, allow one bootstrap slice first. It must leave a runnable project: install, build or typecheck where applicable, tests, and one smoke check all passing. It adds no infrastructure for later un-emitted use cases.
 
-When the product itself is still open, report what is missing and suggest:
-
-```text
-This needs product shaping before implementation planning: <missing decisions>.
-Run the `shape-project` skill, approve its intent brief, then pass that brief to `settle`.
-```
-
-Wait for the user. Do not invoke `shape-project` on their behalf. Do not redirect a concrete request merely because its directory is empty.
-
-## Inventory the absence
-
-Inspect the working directory, including hidden project files. Distinguish an empty folder from an empty Git repository. A README, note, or approved shape brief may settle intent, but it does not establish an implementation convention.
-
-State the evidence state once:
-
-```text
-Evidence state: blank project. No implementation, build configuration, or tests found.
-```
-
-Every `file:line` citation names a line you read. A blank project yields none, so its ledger reads `None`.
-
-## Default narrowly
-
-Record a `D<n>` default only when it is invisible outside the implementation and can be reversed within one slice before another emitted slice depends on it. Give its reason and concrete reversal cost.
-
-Folder names, local naming, test placement after the test tool is chosen, and similarly local organization usually qualify.
-
-Ask when a choice affects the framework, runtime, deployment, public contracts, persistent data, authentication, authorization, privacy, external services, ongoing cost, or several slices. Ask only the decisions the requested use cases actually need.
-
-## Plan the first green state
-
-Prefer a walking use case: initialize the minimum project, implement one observable path, and verify it in the same slice.
-
-Use a separate bootstrap slice only when the toolchain cannot reach green at a use-case boundary. Its verification must prove the project installs, builds or typechecks where applicable, runs its tests, and passes one smoke check. Keep later infrastructure out.
-
-A blank project has no environment to source a verification from, so the bootstrap slice's own commands are marked `to create` and the slice creates them.
-
-In the plan:
-
-- mark the evidence state as blank;
-- write `None` under the code-backed ledger;
-- label every path as `Create`, `Read`, or `Modify`;
-- separate `Existing traversal` from `Planned traversal` in `map.md`;
-- label planned traversal as unverified until the first implementing slice creates and checks it.
+There is no environment to source a verification from, so the bootstrap slice's commands are marked `to create` and the slice creates them.

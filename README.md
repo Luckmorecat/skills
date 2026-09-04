@@ -6,7 +6,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 | Skill | Purpose |
 | --- | --- |
-| `shape-project` | Turn an open project idea into an approved intent brief. |
+| `shape-project` | Turn an open project idea into an approved shape. |
 | `settle` | Resolve implementation decisions and write a sliced plan. |
 | `brief` | Plan a small task that can land green in one session. |
 | `land` | Implement an approved plan or brief and commit it green. |
@@ -18,7 +18,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 | Where you are | Run |
 | --- | --- |
-| The product intent is still open | `shape-project`, then pass its approved brief to `settle` |
+| The product intent is still open | `shape-project`, then pass its approved shape to `settle` |
 | A feature spanning more than one session | `settle`, then `next-slice` once per slice |
 | A small change that fits one session | `brief`, then `land` |
 | Work is in and you want it checked | `code-review` |
