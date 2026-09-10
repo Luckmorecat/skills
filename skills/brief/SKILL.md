@@ -54,7 +54,7 @@ The code wins.
 
 ## Work too large for a brief
 
-Grep and read inline for each fact you need. Stop the moment the work shows it cannot reach green in one pass: it wants a sweep across many files, a mechanical change ahead of the feature, folders that have to land separately, or a fork that opens forks under it. Say which, and hand it to `settle`. A short interview thrown away costs less than a brief built on the wrong shape.
+Find targeted facts inline; for broad searches, preserve the main session's context by giving a subagent a specific question and search scope, and requesting concise findings with `file:line` evidence. Stop the moment the work shows it cannot reach green in one pass: it wants a sweep across many files, a mechanical change ahead of the feature, folders that have to land separately, or a fork that opens forks under it. Say which, and hand it to `settle`. A short interview thrown away costs less than a brief built on the wrong shape.
 
 ## Exit
 
