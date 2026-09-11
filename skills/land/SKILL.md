@@ -1,19 +1,21 @@
 ---
 name: land
-description: Implement a piece of work in one session and commit it green. Use when the user describes work to build now, or names a brief, plan, spec, or tickets to build from.
+description: Implement requested work, verify and review it, then commit it green.
 disable-model-invocation: true
 ---
 
-Implement the work the user asks for, together with any plan, brief, spec, or tickets they name.
+Implement the work the user requests, using any supplied plan, spec, ticket, or acceptance criteria.
 
-Honour whatever scope and verification they state: a **Build** is the contract, an **Out of scope** is the boundary even when an excursion looks cheap, a **Verify** is what proves the work green. Where they state none, build the smallest complete scope the request needs and verify with the repository's own checks. Ask only where the ambiguity would change what you build.
+Honour the requested scope, acceptance criteria, constraints, exclusions, and verification requirements. Where absent, derive observable success/boundary examples from the request and use the repository's checks. Ask only where ambiguity changes the outcome. Green means checks pass, acceptance is demonstrated, constraints hold, and blocking review findings are resolved.
 
 Record the fixed point the review pins against with `git rev-parse HEAD 2>/dev/null || git hash-object -t tree /dev/null`, which yields the empty tree in a repository whose first commit has not landed. Record `git status --porcelain` too when the tree is already dirty.
 
-Use `tdd` where possible, at pre-agreed seams. Run typechecking and single test files regularly, and the full suite once at the end.
+Run the cheapest relevant baseline check. Use `tdd` where possible, at pre-agreed seams. Run focused checks regularly and the full relevant suite at the end; exercise the API or UI when needed to prove acceptance.
 
-Once done, use `code-review`, passing the recorded fixed point, the snapshot if you took one, and the request with anything the user named. Fix every blocking finding and rerun the verification in full, so the tree you commit is the tree you verified.
+Reconcile discoveries before dependent implementation or commit. Correct internal implementation choices within approved constraints; ask before changing approved behaviour, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, or an expensive-to-reverse choice.
+
+Once done, use `code-review`, passing the fixed point, any dirty snapshot, the complete work contract, and verification evidence. Fix blocking findings and rerun affected verification so the committed changes are verified.
 
 Commit your work to the current branch. A fact worth keeping past this work goes into the code, a test, or the commit message.
 
-Work that grew past one green state did not belong here. Say so, and hand what remains to `settle`.
+If blocked, preserve the baseline, owned changes, and evidence; report the missing prerequisite or decision. Commit only work meeting the green criteria.

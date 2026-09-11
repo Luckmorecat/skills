@@ -1,12 +1,12 @@
 ---
 name: shape-project
-description: Turn an open project idea into an approved shape that settle can plan.
+description: Turn an open project idea into an approved shape.
 disable-model-invocation: true
 ---
 
-Shape product intent before implementation planning. Spend the user's attention on externally meaningful choices, finish with a shape they approve, then hand it to the `settle` skill.
+Shape product intent before implementation planning. Spend the user's attention on externally meaningful choices and finish with a shape they approve.
 
-This skill decides what the project should do. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent; their implementation, along with file paths, code structure, and test placement, is `settle`'s.
+This skill decides what the project should do. Record runtime, deployment, data, regulatory, or integration constraints when they are part of the user's intent.
 
 ## Find the product frontier
 
@@ -69,4 +69,4 @@ Write `shape.md` in that directory with:
 - **Out of scope**: exclusions for the first release.
 - **Unresolved**: `None`. An unresolved product fork means the interview is not complete.
 
-Tell the user the absolute path and to invoke `settle` with it next.
+Tell the user the absolute path and to invoke `define` with it next.

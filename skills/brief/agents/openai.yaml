@@ -1,5 +1,0 @@
-interface:
-  display_name: "Brief"
-  short_description: "Plan a one-commit task in a single document"
-policy:
-  allow_implicit_invocation: false

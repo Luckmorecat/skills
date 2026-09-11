@@ -1,0 +1,5 @@
+interface:
+  display_name: "Slice"
+  short_description: "Prepare bounded slices from an approved contract"
+policy:
+  allow_implicit_invocation: false

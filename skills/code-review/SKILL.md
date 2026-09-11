@@ -16,7 +16,7 @@ The **work contract** is whatever approved document the caller supplies, and its
 
 Require a fixed point, in this order: the revision the caller supplies; the merge base against the default branch; otherwise ask the user for a commit, branch, tag, or merge base. Resolve it with `git rev-parse` and require a non-empty review target. A fixed point with no commits behind it, the empty tree of a repository whose first commit has not landed, has no commit log: review the diff alone.
 
-Review committed changes with `git diff <fixed-point>...HEAD` and `git log <fixed-point>..HEAD --oneline`. Add staged, unstaged, and untracked changes. When the caller supplies a snapshot of a tree that was already dirty when the work started, exclude the paths it lists. The snapshot resolves paths, never hunks, so stop when new work touches one of those paths and cannot be separated safely.
+Review committed changes with `git diff <fixed-point>...HEAD` and `git log <fixed-point>..HEAD --oneline`. Add staged, unstaged, and untracked changes. Exclude paths in the caller's pre-existing dirty snapshot and any later unrelated changes they identify. Path exclusions do not separate hunks: stop when target work overlaps an excluded path and cannot be separated safely.
 
 ## 2. Collect standards
 
@@ -26,15 +26,15 @@ Treat these smells as advisory unless one exposes a concrete defect: Mysterious 
 
 ## 3. Run isolated reviews
 
-Spawn both sub-agents in parallel when the runtime provides them. A reviewer that did not write the code is the whole point of this step. If no work contract exists, spawn only Standards.
+Spawn both sub-agents in parallel when the runtime provides them. If no work contract exists, spawn only Standards.
 
 Give Standards the exact review target, commit list, applicable rule files, and smell baseline. Ask for every documented-rule breach and material smell.
 
-Give Plan compliance the exact review target and the whole work contract. Ask for missing or partial requirements, incorrect behavior, scope creep, and task-plan conflicts.
+Give Plan compliance the exact review target, whole work contract, and supplied verification evidence. Check acceptance examples and relevant constraints against implementation and evidence; passing commands alone do not prove acceptance. Ask for missing or partial requirements, incorrect behavior, scope creep, and task-plan conflicts. Identify missing evidence and the smallest check needed to obtain it.
 
 Each finding carries a severity of `blocking` or `advisory`, its file and line, the violated rule or plan clause, and a short fix. A mandatory rule breach is blocking. A smell is advisory unless it proves a defect. Every confirmed plan-compliance finding is blocking. Return findings only, under 300 words per axis. Omit praise and unchanged requirements.
 
-Without sub-agents, work the two axes as separate passes over the diff alone, rereading every file you cite, and state in the report that the review ran without isolation. An author reviewing their own work is not an isolated reviewer, and the report should say which one this was.
+Without sub-agents, work the two axes as separate passes over the diff and supplied contract/evidence, rereading every file you cite. State that the review ran without isolation; an author reviewing their own work is not an isolated reviewer.
 
 ## 4. Report
 
