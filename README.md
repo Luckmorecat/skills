@@ -6,7 +6,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 | Skill | Purpose |
 | --- | --- |
-| `shape-project` | Turn an open project idea into an approved shape. |
+| `shape` | Turn vague thoughts into a concrete concept and a justified next step. |
 | `define` | Resolve intent and decisions; write an approved work contract. |
 | `slice` | Decompose a contract and prepare bounded, verifiable slices. |
 | `land` | Implement requested work and commit it green. |
@@ -19,7 +19,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 | Where you are | Run |
 | --- | --- |
-| The product intent is still open | `shape-project`, then pass its approved shape to `define` |
+| An idea needs a direction | `shape`, then research, prototype, or pass the resulting shape to `define` as appropriate |
 | A small change that fits one session | `define`, then `land` |
 | A feature needing several increments | `define`, then `slice`, then `next-slice` per prepared slice |
 | The next slice is unprepared or implementation exposes a contract blocker | `slice` with the existing plan and checkpoint |
@@ -29,22 +29,26 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 `land` and `next-slice` both invoke `code-review` themselves. Run it directly to review a branch, a pull request, or anything since a commit.
 
+`shape` explores products, features, services, internal tools, and improvements without requiring a repository or commitment to build. It presents a coherent concept in the conversation, preserving assumptions and open questions, then stops without a mandatory approval round. Saving is optional, when requested or already agreed. Pass the result as text or a saved file to `define` when ready for a delivery contract.
+
 `define` replaces `brief` as the common entry point for small and large work. It defines the contract and recommends `land` or `slice`. `slice` alone owns sizing, splitting, ordering, and preparing future work. `next-slice` implements the prepared contract, records findings, and hands blockers back without replanning. Changes to approved intent return to `define`.
 
 Keep planning and implementation in separate sessions by default. The slicer outlines all outcomes but details only ready work, keeping each slice's required knowledge bounded. Run `slice` again when more preparation is needed. Each slice gets acceptance checks, review, and a checkpoint; milestones finish with an integrated check. You can authorize bounded continuation across already-prepared slices.
 
 ## Where plans live
 
-Shapes, contracts, and slice plans live outside the repository:
+Contracts and slice plans live outside the repository. Shapes are presented in the conversation by default; when saving is requested without a destination, they use the same storage root:
 
 ```
 ${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/
-  shapes/<repo>/<slug>-<date>/shape.md
+  shapes/<context>/<slug>-<date>/shape.md
   contracts/<repo>/<slug>-<date>/contract.md
   plans/<repo>/<slug>-<date>/{contract,spine,map,NN-slug,log}.md
 ```
 
-The plan keeps the full contract separately; its compact spine carries shared constraints and the milestone outline. The map holds navigation, ready slices hold relevant acceptance and execution scope, and the log holds recovery state and evidence. Consumers take explicit paths and check repository identity. Existing briefs remain valid inputs to `land` or `slice`; older plans needing preparation go to `slice`, while executable slices can still run through `next-slice`.
+For shapes, context is the relevant repository name, a topic, or `general` for an independent idea.
+
+The plan keeps the full contract separately; its compact spine carries shared constraints and the milestone outline. The map holds navigation, ready slices hold relevant acceptance and execution scope, and the log holds recovery state and evidence. Consumers take explicit paths and check repository identity where applicable. Existing briefs remain valid inputs to `land` or `slice`; older plans needing preparation go to `slice`, while executable slices can still run through `next-slice`.
 
 Export `STRIKER_ROOT` from your shell profile rather than per invocation. The planning session and the implementing session are different shells by design, and a root set in one and unset in the other sends the second somewhere else.
 

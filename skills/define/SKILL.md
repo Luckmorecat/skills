@@ -16,7 +16,7 @@ State the classification in the first round:
 - **Sparse**: tooling exists, but the feature has no nearby precedent.
 - **Blank**: no implementation, build configuration, or tests. Check hidden files; prose and Git metadata are not implementation precedent.
 
-A concrete task stays here: resolve missing outcomes, actors, use cases, or scope boundaries through the question rounds. For a blank project, settle the runtime, tooling, storage, services, and cost choices needed by the requested outcome; mark missing verification commands `to create`. Hand off to `shape-project` when the user is exploring an open-ended product idea rather than defining a concrete task.
+A concrete task stays here: resolve missing outcomes, actors, use cases, or scope boundaries through the question rounds. For a blank project, settle the runtime, tooling, storage, services, and cost choices needed by the requested outcome; mark missing verification commands `to create`. Recommend `shape` when the user needs to explore what an idea could become and choose a direction.
 
 ## Decisions
 
@@ -50,7 +50,9 @@ Q1. <decision and options>
 Recommended: <answer and reason>
 ```
 
-Keep labels unique within the contract. When the user delegates a choice, record the chosen recommendation and delegation. Reuse approved intent from a supplied shape or contract.
+Keep labels unique within the contract. When the user delegates a choice, record the chosen recommendation and delegation. Accept a supplied shape as conversation text or a file. Reuse approved intent from a shape or contract; treat unendorsed proposals as candidates to resolve through the decision rounds.
+
+Carry forward assumptions and open questions from a supplied shape without treating them as verified facts. Resolve those that block the delivery contract; defer others through `U<n>` with a resolution point.
 
 Find targeted facts inline. Delegate independent broad discovery when useful, giving the exact question, scope, and expected evidence. External research is not code precedent. Correct stale factual notes; ask only when desired behaviour is unclear or an approved constraint must change.
 

@@ -1,5 +1,0 @@
-interface:
-  display_name: "Shape project"
-  short_description: "Turn an open idea into an approved shape"
-policy:
-  allow_implicit_invocation: false

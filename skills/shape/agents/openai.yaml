@@ -1,0 +1,5 @@
+interface:
+  display_name: "Shape"
+  short_description: "Turn vague thoughts into a concrete concept"
+policy:
+  allow_implicit_invocation: false
