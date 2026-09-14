@@ -39,7 +39,7 @@ Every session reads this. Keep active shared constraints here, slice-local detai
 - **Shared contract** — actor or caller, global constraints/exclusions, and shared approved decisions. Keep the full acceptance catalogue in `contract.md`; carry relevant examples into each slice without changing their meaning.
 - **Implementation assumptions** — active shared `A<n>` facts with `file:line` and inspected revision; `D<n>` defaults with reason and reversal cost. Keep these distinct from approved intent.
 - **Out of scope** — considered exclusions.
-- **Milestones** — ordered outcomes covering every acceptance ID, dependencies, integrated acceptance checks, and stable slice IDs with `outline`, `ready`, `in-progress`, `blocked`, or `complete` status. Outline later work without speculative paths or commands; `slice` alone marks work ready.
+- **Milestones** — ordered outcomes covering every acceptance ID, dependencies, integrated acceptance checks, and stable slice IDs with `deferred`, `ready`, `in-progress`, `blocked`, or `complete` status. A deferred entry names the unknown and the experiment or slice whose result unblocks its preparation, without speculative paths or commands; `slice` alone marks work ready.
 - **Deferred decisions** — `U<n>`, unknown, dependent work, resolver, and evidence or milestone due before that work starts.
 - **Execution** — selected/next ready slice and dependency order; one slice per invocation by default, with any user-authorized continuation bound. Continuation ends when no prepared slice remains.
 
@@ -54,7 +54,7 @@ Navigation saves search, not reading. Verify paths before relying on them.
 
 ## NN-\<slug\>.md
 
-Create files only for ready slices. Keep IDs stable; milestone order and dependencies determine execution, not filename order.
+Create a file for every prepared slice; deferred slices have none until prepared. Keep IDs stable; milestone order and dependencies determine execution, not filename order.
 
 - **Build** — behaviour to deliver.
 - **Acceptance** — applicable contract IDs and their success/boundary examples, relevant constraints and decisions. Include enough detail to execute without loading the full catalogue. Enabling changes prove compatibility; experiments name the question, limit, and required evidence.

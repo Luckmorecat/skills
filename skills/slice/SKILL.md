@@ -14,19 +14,19 @@ Accept older briefs and plans without repeating settled decisions. Recover missi
 
 ## 2. Outline
 
-Map every approved acceptance example to an outcome and its dependencies. Outline the whole scope, but detail only ready work. Assign deferred decisions to the point before dependent implementation begins. If evidence is missing, schedule a bounded experiment whose result unblocks that decision.
+Map every approved acceptance example to an outcome and its dependencies. Outline the whole scope. Assign deferred decisions to the point before dependent implementation begins. If evidence is missing, schedule a bounded experiment whose result unblocks that decision.
 
 Prefer thin demonstrable use cases. Compatibility adapters, additive migrations, and disabled functionality are valid increments when independently verified and preserving existing behaviour. Include integration and cleanup in the outline. Place mechanical changes where dependencies require them.
 
 For blank projects, read [BOOTSTRAP.md](BOOTSTRAP.md).
 
-## 3. Prepare a bounded slice
+## 3. Prepare bounded slices
 
-Prepare the next executable slice; prepare additional independent slices only when their prerequisites are settled. Each must pass these checks:
+Prepare every outlined slice whose Build, Paths, and Verify can be written from evidence available now. Defer a slice only when an unresolved `U<n>` must be resolved before its content can be written; record the unknown and the experiment or slice whose result unblocks it. Dependence on earlier slices orders execution and never defers preparation. Each prepared slice must pass these checks:
 
 - **Outcome** — one primary result with concrete acceptance examples.
 - **Context** — shared constraints, this slice, and targeted source reads suffice; several independent flows or investigations signal a split.
-- **Readiness** — prerequisites and blocking decisions are resolved.
+- **Readiness** — blocking decisions are resolved; remaining prerequisites are earlier slices in the recorded order.
 - **Verification** — checks demonstrate completion without implementing a later slice.
 - **Review** — the change forms one coherent, reviewable unit.
 
@@ -42,4 +42,4 @@ Use [PLAN-FORMAT.md](PLAN-FORMAT.md). Keep identifiers stable when revising; upd
 
 Decomposition within approved scope needs no fresh approval. A change to approved behaviour, public contracts, persistent data, security/privacy, deployment, services, cost, or an expensive-to-reverse choice requires a decision through `define` before dependent work.
 
-Return the plan path, brief outline, and next ready slice for `next-slice`. Later invocations prepare the next outline item or revise it from implementation findings. Keep planning and implementation in separate sessions by default.
+Return the plan path, brief outline, the next ready slice for `next-slice`, how many slices are prepared, and each deferred slice with the evidence that unblocks it and the exact `slice` invocation that prepares it. Later invocations prepare deferred slices from recorded evidence or revise unstarted slices from implementation findings. Keep planning and implementation in separate sessions by default.

@@ -32,4 +32,4 @@ Record owned changes and verification/review evidence before committing. Commit 
 
 Update progress and factual navigation. Log deviations, downstream findings, and the next action concisely. On a blocker or interruption, preserve the original baseline and owned changes as `blocked` or `in-progress`.
 
-Stop after one slice by default. User-authorized bounded continuation may execute further prepared slices through the same gates; stop at the bound, a blocker, or an unprepared slice. Hand unprepared work to `slice`. Declare completion only when every approved outcome has evidence.
+Stop after one slice by default. User-authorized bounded continuation may execute further prepared slices through the same gates; stop at the bound, a blocker, or a deferred slice. When the next slice in order is deferred, end with the exact `slice` invocation and plan path that prepares it; the plan fixes that step, so do not ask. Declare completion only when every approved outcome has evidence.

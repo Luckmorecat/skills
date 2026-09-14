@@ -22,7 +22,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 | An idea needs a direction | `shape`, then research, prototype, or pass the resulting shape to `define` as appropriate |
 | A small change that fits one session | `define`, then `land` |
 | A feature needing several increments | `define`, then `slice`, then `next-slice` per prepared slice |
-| The next slice is unprepared or implementation exposes a contract blocker | `slice` with the existing plan and checkpoint |
+| The next slice is deferred or implementation exposes a contract blocker | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
 | A worktree of changes needs to land as commits | `commit` |
 | A discussion needs a picture | `show-me` |
@@ -33,7 +33,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 
 `define` replaces `brief` as the common entry point for small and large work. It defines the contract and recommends `land` or `slice`. `slice` alone owns sizing, splitting, ordering, and preparing future work. `next-slice` implements the prepared contract, records findings, and hands blockers back without replanning. Changes to approved intent return to `define`.
 
-Keep planning and implementation in separate sessions by default. The slicer outlines all outcomes but details only ready work, keeping each slice's required knowledge bounded. Run `slice` again when more preparation is needed. Each slice gets acceptance checks, review, and a checkpoint; milestones finish with an integrated check. You can authorize bounded continuation across already-prepared slices.
+Keep planning and implementation in separate sessions by default. The slicer outlines all outcomes and prepares every slice it can write from current evidence; it defers only slices that wait on an unresolved unknown, naming the experiment that unblocks them. Run `slice` again once that evidence lands. Each slice gets acceptance checks, review, and a checkpoint; milestones finish with an integrated check. You can authorize bounded continuation across already-prepared slices.
 
 ## Where plans live
 
