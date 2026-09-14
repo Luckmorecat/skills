@@ -22,12 +22,12 @@ A concrete task stays here: resolve missing outcomes, actors, use cases, or scop
 
 Resolve choices that constrain acceptance, shared architecture, or immediate implementation. Defer later details as `U<n>`: unknown, dependent work, resolver, and evidence required before that work starts.
 
-Find the **nearest precedent**: feature folder, parent, then repository. The nearest layer that settles the choice wins.
+Find the **nearest precedent**: feature folder, parent, then repository. The nearest layer that settles the choice wins. Code the work replaces is not precedent for its replacement; treat its internal choices as absent precedent.
 
 | Evidence | Action |
 | --- | --- |
 | One established way | Resolve as `A<n>`; cite the code. |
-| Split or absent precedent; choice changes behaviour, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, or is expensive to reverse | Ask before dependent implementation. |
+| Split or absent precedent; choice changes behaviour, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, responsibility or dependency boundaries between components, or is expensive to reverse | Ask before dependent implementation. |
 | Split or absent precedent; internal and cheaply reversible within approved constraints | Resolve as `D<n>`; record reason and reversal cost. |
 
 ## Rounds and discovery
