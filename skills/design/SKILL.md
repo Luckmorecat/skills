@@ -4,7 +4,7 @@ description: Resolve a focused technical design question through evidence, alter
 disable-model-invocation: true
 ---
 
-Turn a named technical uncertainty into a decision precise enough for implementation. Work within the supplied intent and constraints. `define` owns the delivery contract; `design` deepens selected technical decisions; `slice` owns decomposition. This session produces decisions and contract amendments, not implementation.
+Turn a named technical uncertainty into a decision precise enough for implementation. Work within the supplied intent and constraints. `define` explores intent and consequential choices; `contract` writes the delivery contract; `design` deepens selected technical decisions; `slice` owns decomposition. This session produces decisions and contract amendments, not implementation.
 
 ## 1. Frame
 
@@ -50,6 +50,6 @@ Present a concise decision record:
 - **Contract changes** — affected acceptance, constraints, decisions, and unknowns; distinguish agreed changes from proposals.
 - **Remaining uncertainty** — affected work, resolver, evidence required, and resolution point; `None` when resolved.
 
-Amend the supplied contract with agreed changes, preserving identifiers and unrelated content. For replaced decisions record the prior choice, replacement, reason, and approval or delegation. Keep the contract authoritative; use a linked design note only when the detail would overwhelm it. Without a supplied file, return the record in conversation for `define` to incorporate. An ADR is optional for a durable, costly-to-reverse tradeoff whose rationale future maintainers need.
+Amend the supplied contract with agreed changes, preserving identifiers and unrelated content. For replaced decisions record the prior choice, replacement, reason, and approval or delegation. Keep the contract authoritative; use a linked design note only when the detail would overwhelm it. Without a supplied file, return the record in conversation for a later contract to incorporate. An ADR is optional for a durable, costly-to-reverse tradeoff whose rationale future maintainers need.
 
 If a supplied plan is affected, identify the affected unstarted slices and hand it to `slice` for revision. Otherwise return to `define` for unresolved delivery intent, recommend the bounded investigation for missing evidence, or recommend `land` or `slice` according to the existing contract's readiness. Pending decisions block their dependent work. Return amended paths and the next action, then stop.

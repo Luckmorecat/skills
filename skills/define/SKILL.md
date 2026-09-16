@@ -1,65 +1,41 @@
 ---
 name: define
-description: Resolve the desired outcome, acceptance, constraints, and consequential decisions, then write a work contract.
+description: Explore and grill an idea or feature until its purpose, experience, scope, and consequential decisions are clear.
 disable-model-invocation: true
 ---
 
-Define what should be delivered and its constraints. Spend the user's attention on decisions that are theirs.
+Explore the requested feature until its purpose, experience, scope, and consequential decisions are clear. Start from the user's existing context. When the direction is uncertain, contribute concrete possibilities and help choose one. A repository or commitment to build is optional.
 
-Code is the source of truth for current behaviour; user answers govern desired behaviour. Cite code-backed claims with a `file:line` read this session.
+Grill assumptions and use concrete scenarios to uncover missing behavior, contradictions, failure cases, and tradeoffs. Recommend answers with reasons.
 
-## Evidence state
+Treat decisions as a tree. Ask independent questions whose prerequisites are settled together; defer questions that depend on unanswered choices. Wait for answers before treating recommendations as decisions. When the user delegates a choice, make it and explain why.
 
-State the classification in the first round:
+Use numbered questions so the user can answer briefly. Give each a recommendation and its main tradeoff. Keep question numbers unique across rounds.
 
-- **Established**: relevant implementation and conventions exist.
-- **Sparse**: tooling exists, but the feature has no nearby precedent.
-- **Blank**: no implementation, build configuration, or tests. Check hidden files; prose and Git metadata are not implementation precedent.
+```markdown
+❓ **Q1 — Who can invite members?**
+Any member, or only the owner?
 
-A concrete task stays here: resolve missing outcomes, actors, use cases, or scope boundaries through the question rounds. For a blank project, settle the runtime, tooling, storage, services, and cost choices needed by the requested outcome; mark missing verification commands `to create`. Recommend `shape` when the user needs to explore what an idea could become and choose a direction.
+➡️ **Recommended:** Any member, so the group can grow without
+waiting on its owner. The owner can revoke invitations.
 
-## Decisions
+---
 
-Resolve choices that constrain acceptance, shared architecture, or immediate implementation. Defer later details as `U<n>`: unknown, dependent work, resolver, and evidence required before that work starts.
+❓ **Q2 — When do invitations expire?**
+After a fixed period, or only when revoked?
 
-Find the **nearest precedent**: feature folder, parent, then repository. The nearest layer that settles the choice wins. Code the work replaces is not precedent for its replacement; treat its internal choices as absent precedent.
-
-| Evidence | Action |
-| --- | --- |
-| One established way | Resolve as `A<n>`; cite the code. |
-| Split or absent precedent; choice changes behaviour, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, responsibility or dependency boundaries between components, or is expensive to reverse | Ask before dependent implementation. |
-| Split or absent precedent; internal and cheaply reversible within approved constraints | Resolve as `D<n>`; record reason and reversal cost. |
-
-## Rounds and discovery
-
-The **frontier** contains questions needed now whose prerequisites are settled. Ask them together, then wait; dependent questions belong to the next round.
-
-Print new decisions with stable labels:
-
-```text
-Assumed from code; reopen by number
-A1. <assumption> · <file:line>
-
-Defaults; reopen by number
-D1. <choice> · <reason and reversal cost>
-
-Deferred
-U1. <unknown> · <dependent work, resolver, required evidence>
-
-Q1. <decision and options>
-Recommended: <answer and reason>
+➡️ **Recommended:** After seven days, limiting how long an
+unused invitation grants access, at the cost of resending expired ones.
 ```
 
-Keep labels unique within the contract. When the user delegates a choice, record the chosen recommendation and delegation. Accept a supplied shape as conversation text or a file. Reuse approved intent from a shape or contract; treat unendorsed proposals as candidates to resolve through the decision rounds.
+The user can reply: `Q1 owner only; Q2 recommendation`. Record those answers before moving to dependent questions.
 
-Carry forward assumptions and open questions from a supplied shape without treating them as verified facts. Resolve those that block the delivery contract; defer others through `U<n>` with a resolution point.
+Investigate facts yourself. Use subagents for independent exploration of relevant code, existing behavior, technical feasibility, and external evidence. Give each a bounded question and ask for findings with supporting evidence. Continue independent questions while they investigate; revisit dependent decisions when findings arrive.
 
-Find targeted facts inline. Delegate independent broad discovery when useful, giving the exact question, scope, and expected evidence. External research is not code precedent. Correct stale factual notes; ask only when desired behaviour is unclear or an approved constraint must change.
+Resolve choices within the requested scope that affect user-visible behavior, public interfaces, persistent data, security or privacy, deployment, external dependencies, ongoing cost, ownership between components, or the cost of changing direction. Surface these consequences even when the choice appears to be an implementation detail.
 
-## Contract and handoff
+Distinguish settled decisions, proposals, and claims that still need evidence. User agreement settles intent; it does not prove feasibility or demand. When evidence is unavailable, identify what remains uncertain and what would resolve it.
 
-Finish when acceptance and constraints are concrete and remaining uncertainty has a resolution point. Use [CONTRACT-FORMAT.md](CONTRACT-FORMAT.md) to present the contract and persist it after approval, unless already approved.
+Continue until concrete scenarios explain the main experience and meaningful boundaries, and every known consequential choice is resolved or explicitly left open with its implications understood. Clearly identify any open choice that prevents the feature from being fully defined.
 
-Recommend optional `design` when a named technical decision needs deeper comparison or scenario checks; it can refine the contract here or support an unresolved decision during the rounds.
-
-Recommend `land` when the whole contract has bounded implementation and verification with no unresolved blocking decisions. Otherwise recommend `slice`. Return the contract's absolute path and the next skill.
+Finish with a brief recap of settled decisions and remaining uncertainties.

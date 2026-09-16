@@ -5,9 +5,8 @@ Use one contract for small and large work. Keep it concise and self-contained:
 - **Goal / Build** — observable outcome, actor or caller, and scope.
 - **Acceptance** — stable IDs for success and boundary examples.
 - **Constraints and exclusions** — hard requirements and out-of-scope work.
-- **Decisions** — user-approved choices and reasons, separate from `A<n>` assumptions and `D<n>` defaults.
-- **Evidence / Paths** — repository root, remote when available, branch/worktree, inspected revision (or `unborn`), evidence state, and relevant code entry points. Cite facts with `file:line`; mark intended paths unverified.
-- **Unknowns** — `U<n>`, dependent work, resolver, and required evidence; `None` when resolved.
+- **Decisions** — user-approved choices and reasons, separate from assumptions and defaults. Preserve existing identifiers.
+- **Evidence / Paths** — repository root, remote when available, branch/worktree, inspected revision (or `unborn`), and relevant code entry points. Cite facts with `file:line`; mark intended paths unverified.
 - **Verify** — observable proof of acceptance. For directly executable work, include commands and their sources; missing commands are `to create` work. For larger scope, specify the verification approach without inventing later implementation details.
 
 Present this for approval; preserve existing authorization. Write the approved `contract.md` outside the repository:

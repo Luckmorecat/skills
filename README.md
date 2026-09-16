@@ -6,8 +6,8 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 
 | Skill | Purpose |
 | --- | --- |
-| `shape` | Turn vague thoughts into a concrete concept and a justified next step. |
-| `define` | Resolve intent and decisions; write an approved work contract. |
+| `define` | Explore and grill an idea or feature; resolve consequential decisions. |
+| `contract` | Write a work contract from settled conversation or documents. |
 | `design` | Resolve a focused technical decision and amend the work contract. |
 | `slice` | Decompose a contract and prepare bounded, verifiable slices. |
 | `land` | Implement requested work and commit it green. |
@@ -20,9 +20,10 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 
 | Where you are | Run |
 | --- | --- |
-| An idea needs a direction | `shape`, then research, prototype, or pass the resulting shape to `define` as appropriate |
-| A small change that fits one session | `define`, then `land` |
-| A feature needing several increments | `define`, then `slice`, then `next-slice` per prepared slice |
+| An idea or feature needs exploration | `define` |
+| Settled context needs a delivery contract | `contract` |
+| A small change with a settled scope | `contract`, then `land` |
+| A defined feature needing several increments | `contract`, then `slice`, then `next-slice` per prepared slice |
 | A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
 | The next slice is deferred or implementation exposes a contract blocker | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
@@ -31,9 +32,9 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 
 `land` and `next-slice` both invoke `code-review` themselves. Run it directly to review a branch, a pull request, or anything since a commit.
 
-`shape` explores products, features, services, internal tools, and improvements without requiring a repository or commitment to build. It presents a coherent concept in the conversation, preserving assumptions and open questions, then stops without a mandatory approval round. Saving is optional, when requested or already agreed. Pass the result as text or a saved file to `define` when ready for a delivery contract.
+`define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and subagent discovery to resolve consequential choices. It finishes with a brief conversational recap of settled decisions and remaining uncertainties. The user chooses what happens next.
 
-`define` replaces `brief` as the common entry point for small and large work. It defines the contract and recommends `land` or `slice`. `slice` alone owns sizing, splitting, ordering, and preparing future work. `next-slice` implements the prepared contract, records findings, and hands blockers back without replanning. Changes to approved intent return to `define`.
+`contract` turns settled context into a self-contained delivery contract when invoked. It derives acceptance examples from agreed behavior and surfaces missing decisions without repeating the exploration. `slice` alone owns sizing, splitting, ordering, and preparing future work. `next-slice` implements the prepared contract, records findings, and hands blockers back without replanning. Newly discovered consequential choices and changes to approved intent can be explored with `define`; agreed changes must be reflected in the contract before dependent work proceeds.
 
 `design` frames a named technical question, inspects evidence, compares alternatives against explicit criteria, and checks the recommendation against concrete scenarios. It folds agreed decisions into the existing contract. Use it when you want deeper design work; `define` still resolves consequential decisions on its own. Missing evidence produces a bounded investigation, and affected slice plans return to `slice` for revision.
 
@@ -41,16 +42,13 @@ Keep planning and implementation in separate sessions by default. The slicer out
 
 ## Where plans live
 
-Contracts and slice plans live outside the repository. Shapes are presented in the conversation by default; when saving is requested without a destination, they use the same storage root:
+Contracts and slice plans live outside the repository. `define` presents its recap in the conversation. Saved contracts and plans use this storage root:
 
 ```
 ${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/
-  shapes/<context>/<slug>-<date>/shape.md
   contracts/<repo>/<slug>-<date>/contract.md
   plans/<repo>/<slug>-<date>/{contract,spine,map,NN-slug,log}.md
 ```
-
-For shapes, context is the relevant repository name, a topic, or `general` for an independent idea.
 
 The plan keeps the full contract separately; its compact spine carries shared constraints and the milestone outline. The map holds navigation, ready slices hold relevant acceptance and execution scope, and the log holds recovery state and evidence. Consumers take explicit paths and check repository identity where applicable. Existing briefs remain valid inputs to `land` or `slice`; older plans needing preparation go to `slice`, while executable slices can still run through `next-slice`.
 
@@ -77,6 +75,7 @@ Install selected skills by repeating `--skill`:
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex \
   --skill define \
+  --skill contract \
   --skill slice \
   --skill next-slice \
   --yes

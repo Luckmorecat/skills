@@ -1,5 +1,5 @@
 interface:
   display_name: "Define"
-  short_description: "Define a work contract for implementation or slicing"
+  short_description: "Grill ideas and resolve consequential feature decisions"
 policy:
   allow_implicit_invocation: false

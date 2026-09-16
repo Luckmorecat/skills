@@ -1,0 +1,5 @@
+interface:
+  display_name: "Contract"
+  short_description: "Write a work contract from settled context"
+policy:
+  allow_implicit_invocation: false
