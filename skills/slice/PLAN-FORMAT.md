@@ -1,88 +1,52 @@
 # Plan format
 
-Write a new plan outside the repository using `STRIKER_ROOT`. When revising a supplied plan, update its existing directory and preserve recovery state.
-
-```bash
-striker_root="${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}"
-if repo_root=$(git rev-parse --show-toplevel 2>/dev/null); then
-  repo=$(basename "$repo_root")
-else
-  repo=$(basename "$PWD")
-fi
-slug="oauth-device-flow"   # replace with a short kebab-case summary
-mkdir -p "$striker_root/plans/$repo"
-mkdir "$striker_root/plans/$repo/$slug-$(date +%F)"
-```
-
-Create the leaf without `-p`; if it exists, choose a more specific slug. Always create a directory, including for single-slice work:
+Honor a supplied destination. Otherwise create an unused directory under `${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/plans/<repo>/<slug>-<date>/`, using the repository name, a short feature slug, and an ISO date.
 
 ```text
 <plan>/
-  contract.md
-  spine.md
-  map.md
+  plan.md
   01-<slug>.md
+  02-<slug>.md
   log.md
 ```
 
-## contract.md
+## plan.md
 
-Keep a complete snapshot of the approved input, including its source path. Refresh it only from an approved amendment. The slicer uses it for coverage; executors load it only when the slice and shared constraints leave a specific requirement unclear.
+Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions, with source references when available. Record the repository root, remote when available, branch/worktree, and planning revision (or `unborn`). Separate verified facts from assumptions.
 
-## spine.md
+List every slice in a compact table:
 
-Every session reads this. Keep active shared constraints here, slice-local details in their slice, and history in the log.
+| ID | File | Outcome | Blocked by | Status |
+| --- | --- | --- | --- | --- |
+| 01 | 01-<slug>.md | Observable result | None | ready |
+| 02 | 02-<slug>.md | Observable result | 01 | ready |
 
-- **Goal** — outcome and source contract path, written out so the plan stands alone.
-- **Identity** — repository root and remote when available, branch/worktree, and planning revision (or `unborn`). Record deliberate checkout changes when work moves.
-- **Evidence state** — established, sparse, or blank, with inspected scope.
-- **Shared contract** — actor or caller, global constraints/exclusions, and shared approved decisions. Keep the full acceptance catalogue in `contract.md`; carry relevant examples into each slice without changing their meaning.
-- **Implementation assumptions** — active shared `A<n>` facts with `file:line` and inspected revision; `D<n>` defaults with reason and reversal cost. Keep these distinct from approved intent.
-- **Out of scope** — considered exclusions.
-- **Milestones** — ordered outcomes covering every acceptance ID, dependencies, integrated acceptance checks, and stable slice IDs with `deferred`, `ready`, `in-progress`, `blocked`, or `complete` status. A deferred entry names the unknown and the experiment or slice whose result unblocks its preparation, without speculative paths or commands; `slice` alone marks work ready.
-- **Deferred decisions** — `U<n>`, unknown, dependent work, resolver, and evidence or milestone due before that work starts.
-- **Execution** — selected/next ready slice and dependency order; one slice per invocation by default, with any user-authorized continuation bound. Continuation ends when no prepared slice remains.
+This table owns dependencies and status. IDs remain stable; dependencies determine execution order. Name the behavior or evidence each dependency supplies. Check that every dependency exists, the graph has no cycles, and every agreed outcome is covered.
 
-## map.md
+Use `ready`, `in-progress`, `blocked`, or `complete`. A ready slice is fully described; it can start only after its dependencies complete. Mark a slice blocked when a missing decision or evidence prevents describing or executing it, and record what resolves that blocker. An unfinished dependency alone does not make a slice blocked.
 
-Navigation saves search, not reading. Verify paths before relying on them.
+## Slice files
 
-- **Existing traversal** — inspected flow and revision; `None` for blank projects.
-- **Planned traversal** — intended paths, explicitly unverified until created and checked.
-- **Shared paths** — files several slices touch and why.
-- **Ruled out** — eliminated paths and reasons.
+Create one file per slice. A blocked slice records what is known and its unresolved gap; keep speculative requirements visibly unresolved.
 
-## NN-\<slug\>.md
+```markdown
+# 01 — <Title>
 
-Create a file for every prepared slice; deferred slices have none until prepared. Keep IDs stable; milestone order and dependencies determine execution, not filename order.
+## Outcome
+<The behavior this slice delivers.>
 
-- **Build** — behaviour to deliver.
-- **Acceptance** — applicable contract IDs and their success/boundary examples, relevant constraints and decisions. Include enough detail to execute without loading the full catalogue. Enabling changes prove compatibility; experiments name the question, limit, and required evidence.
-- **Prerequisites** — dependencies and resolved unknowns; discoveries requiring a new decision.
-- **Exclusions** — adjacent work reserved for later slices.
-- **Paths** — `Read`, `Create`, or `Modify`, with purpose; include slice-local assumptions/defaults here.
-- **Verify** — commands with sources and observable results proving acceptance. Missing commands are `to create` work in Build. Include integrated acceptance when this slice completes a milestone.
+## Acceptance
+- [ ] <Observable success example.>
+- [ ] <Relevant boundary or failure example.>
+
+## Verification
+<How to demonstrate acceptance, including any required integration check.>
+```
+
+Include slice-specific constraints and exclusions where needed. Carry forward acceptance identifiers when the input has them. Add code pointers or snippets only when they preserve a decision or materially help navigation; distinguish inspected code from proposed structure. Verification describes observable proof; include commands when known and recheck them during execution.
 
 ## log.md
 
-Initialize current state; executors update it before work and after checkpoints, keeping milestone status in sync. Load historical entries only when relevant. Preserve existing baselines and evidence when replanning unfinished work.
+Keep a current checkpoint with the active slice, original starting revision, pre-existing dirty snapshot, owned changes, verification/review evidence, landed revisions, and blocker or next action. Initialize it as not started. Append concise history at checkpoints; completed claims require evidence.
 
-```markdown
-# Log
-
-## Current
-
-- Slice: <next ID>
-- Status: ready
-- Starting revision and pre-existing dirty snapshot: not started
-- Owned changes, landed revisions, verification/review evidence: none
-- Blocker or next action: <first action>
-
-## History
-
-Append per slice: ID, status, landed revisions, evidence, deviations and reasons, next dependencies.
-```
-
-Statuses are `ready`, `in-progress`, `blocked`, and `complete`. A log entry alone never proves completion: record acceptance/check results, resolved review findings, and landed revisions. For an experiment with no code changes, record its result and unchanged revision.
-
-Record plan revisions and approved contract amendments with the previous decision, replacement, reason, and authorization where needed. Keep completed evidence intact. If history grows large, move older entries to `archive.md`; read it only for needed decision or recovery evidence.
+When revising a plan, retain completed work, IDs, and recovery state; record the reason for changed unfinished work. Existing plans using `contract.md`, `spine.md`, and `map.md` can retain their layout. Update their equivalent fields in place rather than forcing a migration.
