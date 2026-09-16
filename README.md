@@ -1,6 +1,6 @@
 # Striker skills
 
-Eight workflow skills for shaping an idea, resolving design decisions, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
+Nine workflow skills for shaping an idea, resolving design decisions, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -12,6 +12,7 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
 | `land` | Implement requested work and commit it green. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
+| `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
 | `code-review` | Review a pinned change against repository standards and an optional approved plan. |
 | `commit` | Group changes into semantic commits and create them. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
@@ -24,6 +25,7 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
+| A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
 | A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
 | A breakdown needs revision or a slice needs preparation | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
@@ -39,6 +41,8 @@ Eight workflow skills for shaping an idea, resolving design decisions, planning 
 `design` frames a named technical question, inspects evidence, compares alternatives against explicit criteria, and checks the recommendation against concrete scenarios. It folds agreed decisions into the existing contract. Use it when you want deeper design work; `define` still resolves consequential decisions on its own. Missing evidence produces a bounded investigation, and affected slice plans return to `slice` for revision.
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
+
+`run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer.
 
 ## Where plans live
 
@@ -64,7 +68,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all nine globally for Codex:
+Install all ten globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -83,7 +87,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all nine globally for Claude Code:
+Install all ten globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes

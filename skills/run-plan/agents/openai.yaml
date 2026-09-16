@@ -1,0 +1,3 @@
+interface:
+  display_name: "Run plan"
+  short_description: "Orchestrate slice execution and blocker recovery"
