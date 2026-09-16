@@ -60,4 +60,6 @@ Find targeted facts inline. Delegate independent broad discovery when useful, gi
 
 Finish when acceptance and constraints are concrete and remaining uncertainty has a resolution point. Use [CONTRACT-FORMAT.md](CONTRACT-FORMAT.md) to present the contract and persist it after approval, unless already approved.
 
+Recommend optional `design` when a named technical decision needs deeper comparison or scenario checks; it can refine the contract here or support an unresolved decision during the rounds.
+
 Recommend `land` when the whole contract has bounded implementation and verification with no unresolved blocking decisions. Otherwise recommend `slice`. Return the contract's absolute path and the next skill.

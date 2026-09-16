@@ -1,6 +1,6 @@
 # Striker skills
 
-Seven workflow skills for shaping an idea, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
+Eight workflow skills for shaping an idea, resolving design decisions, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -8,6 +8,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 | --- | --- |
 | `shape` | Turn vague thoughts into a concrete concept and a justified next step. |
 | `define` | Resolve intent and decisions; write an approved work contract. |
+| `design` | Resolve a focused technical decision and amend the work contract. |
 | `slice` | Decompose a contract and prepare bounded, verifiable slices. |
 | `land` | Implement requested work and commit it green. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
@@ -22,6 +23,7 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 | An idea needs a direction | `shape`, then research, prototype, or pass the resulting shape to `define` as appropriate |
 | A small change that fits one session | `define`, then `land` |
 | A feature needing several increments | `define`, then `slice`, then `next-slice` per prepared slice |
+| A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
 | The next slice is deferred or implementation exposes a contract blocker | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
 | A worktree of changes needs to land as commits | `commit` |
@@ -32,6 +34,8 @@ Seven workflow skills for shaping an idea, planning implementation, delivering o
 `shape` explores products, features, services, internal tools, and improvements without requiring a repository or commitment to build. It presents a coherent concept in the conversation, preserving assumptions and open questions, then stops without a mandatory approval round. Saving is optional, when requested or already agreed. Pass the result as text or a saved file to `define` when ready for a delivery contract.
 
 `define` replaces `brief` as the common entry point for small and large work. It defines the contract and recommends `land` or `slice`. `slice` alone owns sizing, splitting, ordering, and preparing future work. `next-slice` implements the prepared contract, records findings, and hands blockers back without replanning. Changes to approved intent return to `define`.
+
+`design` frames a named technical question, inspects evidence, compares alternatives against explicit criteria, and checks the recommendation against concrete scenarios. It folds agreed decisions into the existing contract. Use it when you want deeper design work; `define` still resolves consequential decisions on its own. Missing evidence produces a bounded investigation, and affected slice plans return to `slice` for revision.
 
 Keep planning and implementation in separate sessions by default. The slicer outlines all outcomes and prepares every slice it can write from current evidence; it defers only slices that wait on an unresolved unknown, naming the experiment that unblocks them. Run `slice` again once that evidence lands. Each slice gets acceptance checks, review, and a checkpoint; milestones finish with an integrated check. You can authorize bounded continuation across already-prepared slices.
 
@@ -62,7 +66,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all eight globally for Codex:
+Install all nine globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -80,7 +84,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all eight globally for Claude Code:
+Install all nine globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
@@ -88,7 +92,7 @@ npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
 
 ## Portability
 
-One `SKILL.md` serves both runtimes. `disable-model-invocation: true` in its frontmatter keeps Claude Code from auto-loading a skill; `policy.allow_implicit_invocation: false` in `agents/openai.yaml` does the same for Codex. Each host ignores the other's, so there is no per-runtime fork to maintain.
+One `SKILL.md` serves both runtimes. For manually invoked skills, `disable-model-invocation: true` in the frontmatter keeps Claude Code from auto-loading the skill; `policy.allow_implicit_invocation: false` in `agents/openai.yaml` does the same for Codex. Each host ignores the other's, so there is no per-runtime fork to maintain.
 
 Skill bodies name other skills in plain backticks rather than with a `$` or `/` prefix, because the two hosts spell invocation differently and a body that hardcodes one is wrong on the other.
 
