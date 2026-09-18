@@ -1,55 +1,27 @@
 ---
 name: design
-description: Resolve a focused technical design question through evidence, alternatives, and scenario checks, then amend the work contract.
+description: Explore technical approaches and strengthen a supplied contract or spec with decisions that make implementation easier.
 disable-model-invocation: true
 ---
 
-Turn a named technical uncertainty into a decision precise enough for implementation. Work within the supplied intent and constraints. `define` explores intent and consequential choices; `contract` writes the delivery contract; `design` deepens selected technical decisions; `slice` owns decomposition. This session produces decisions and contract amendments, not implementation.
+Turn technical uncertainty into decisions precise enough for implementation. Start from the supplied contract or spec and relevant conversation. Preserve settled intent and constraints; focus on technical choices that simplify implementation or resolve ambiguity.
 
-## 1. Frame
+Identify where libraries, tools, design patterns, or simpler structures could help satisfy the requirements. Recommend approaches for concrete needs, with reasons and tradeoffs. Keep cheaply reversible implementation details open.
 
-Read the supplied contract or plan and relevant conversation. Reuse settled intent and decisions. If no contract exists, work from the stated outcome and constraints; return missing product intent to `define` when it prevents evaluating the design.
+Dispatch a research subagent when choosing a library, tool, design pattern, or technical mechanism. Have it research currently available solutions using primary sources, including simpler approaches that avoid an additional dependency. Assess fit against the requirements, limitations, integration cost, and maintenance where relevant.
 
-State the **decision**, **fixed constraints**, **comparison criteria in priority order**, and **excluded questions**. Ask only for missing information that changes this frame. A broad request becomes a bounded set of related decisions with their dependencies.
+When existing code affects the choice, dispatch a separate exploration subagent to inspect relevant behavior, interfaces, dependencies, ownership, and conventions. Treat internals being replaced as current behavior, not constraints on their replacement.
 
-Proceed when the decision and criteria distinguish what an acceptable answer must accomplish. Explicit user priorities govern; otherwise propose priorities and identify any tradeoff that needs the user's judgment.
+Give each subagent a bounded question and request concise findings, implications, uncertainties, and supporting references. Keep detailed exploration in subagent context; compare approaches and resolve decisions in the main session. Follow up on consequential claims or gaps that could change the choice.
 
-## 2. Inspect evidence
+Compare credible alternatives against the contract's requirements and constraints. Favor the simplest approach that meets them. Explain why the recommendation fits and what costs or limitations it introduces; avoid manufacturing alternatives.
 
-Trace the relevant behavior, interfaces, state ownership, and dependency boundaries in code. Cite current facts with `file:line` read this session; label proposed structures separately. Find the nearest applicable precedent. Treat internals being replaced as current behavior, not a constraint on their replacement.
+Test the approach against concrete success, failure, and boundary scenarios. Work out responsibilities, interfaces, data flow, and failure behavior where they matter to implementation. Revise choices that expose contradictions or unnecessary complexity.
 
-List only evidence gaps that could change the choice. For each, name the question, affected decision, and evidence needed. Distinguish facts, assumptions, and approved constraints; agreement does not verify an assumption.
+Ask about unresolved consequential tradeoffs with options and a recommendation. Group independent questions and defer dependent ones until their prerequisites settle. Reuse existing decisions and delegation; otherwise wait for the user's answer before treating a recommendation as settled.
 
-Proceed when there is enough evidence to compare approaches. If a decisive fact requires an experiment, specify its scope, effort limit, observable result, and how that result selects an approach. Mark the decision pending evidence; continue independent decisions only.
+Distinguish verified facts, proposed designs, and remaining assumptions. When a choice depends on missing evidence, identify what would resolve it and which part of the design remains uncertain.
 
-## 3. Compare
+Amend the supplied contract or spec with agreed technical decisions, their rationale, and the details implementers need to preserve. Integrate changes into its existing structure, preserving identifiers and unrelated content. Keep unresolved choices explicit. Without a supplied file, return the proposed additions in conversation.
 
-Compare the simplest viable approach with materially different credible alternatives, usually two or three approaches in total. Include the existing approach when viable. If only one survives the constraints, explain why; avoid manufacturing alternatives.
-
-Use a compact table against the same criteria. Reject hard-constraint violations first, then compare surviving options using the stated priorities. Include consequences, operating burden, and reversal cost where they distinguish options. Recommend one approach and state what evidence or priority change would overturn it.
-
-Proceed when the recommendation and its tradeoffs follow from the evidence and criteria. Leave unsupported claims explicit.
-
-## 4. Stress-test and resolve
-
-Trace the recommendation through concrete success, failure, and boundary scenarios relevant to the decision. Include concurrency, retries, cancellation, or migration when they can change the choice. State the expected behavior and responsible component at each consequential boundary. Revise the recommendation if a scenario exposes a contradiction.
-
-Show the proposed design at the smallest useful level: responsibilities, interfaces, state transitions, invariants, and failure behavior that implementers must preserve. Keep cheaply reversible implementation details open.
-
-Ask unresolved tradeoffs together when independent; ask dependent questions after their prerequisites settle. Give each question a stable `Q<n>` label, options, a recommendation, and its consequence. Preserve existing identifiers and allocate unused numbers. Record choices and reasons, including delegated choices. Existing approval or delegation suffices; otherwise wait for the user's decision before treating a recommendation as settled.
-
-Proceed when each in-scope decision is resolved or explicitly pending evidence or user choice, and scenario checks reveal no unaddressed contradiction.
-
-## 5. Record and hand off
-
-Present a concise decision record:
-
-- **Question and status** — resolved, pending evidence, or pending user choice.
-- **Decision and rationale** — chosen approach, relevant evidence, alternatives, and accepted tradeoffs.
-- **Design obligations** — boundaries, interfaces, invariants, and scenario expectations needed for implementation and verification.
-- **Contract changes** — affected acceptance, constraints, decisions, and unknowns; distinguish agreed changes from proposals.
-- **Remaining uncertainty** — affected work, resolver, evidence required, and resolution point; `None` when resolved.
-
-Amend the supplied contract with agreed changes, preserving identifiers and unrelated content. For replaced decisions record the prior choice, replacement, reason, and approval or delegation. Keep the contract authoritative; use a linked design note only when the detail would overwhelm it. Without a supplied file, return the record in conversation for a later contract to incorporate. An ADR is optional for a durable, costly-to-reverse tradeoff whose rationale future maintainers need.
-
-If a supplied plan is affected, identify the affected unstarted slices and hand it to `slice` for revision. Otherwise return to `define` for unresolved delivery intent, recommend the bounded investigation for missing evidence, or recommend `land` or `slice` according to the existing contract's readiness. Pending decisions block their dependent work. Return amended paths and the next action, then stop.
+Continue until the in-scope technical choices are resolved or explicitly open with their implementation consequences understood. Finish with a brief recap of the changes, amended paths, and remaining uncertainties.
