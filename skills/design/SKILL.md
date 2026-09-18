@@ -1,6 +1,6 @@
 ---
 name: design
-description: Explore technical approaches and strengthen a supplied contract or spec with decisions that make implementation easier.
+description: Explore technical approaches for a supplied contract or spec and summarize decisions that make implementation easier.
 disable-model-invocation: true
 ---
 
@@ -20,8 +20,21 @@ Test the approach against concrete success, failure, and boundary scenarios. Wor
 
 Ask about unresolved consequential tradeoffs with options and a recommendation. Group independent questions and defer dependent ones until their prerequisites settle. Reuse existing decisions and delegation; otherwise wait for the user's answer before treating a recommendation as settled.
 
+Use numbered questions with explicit lettered choices (`A`, `B`, `C`) on separate lines. Keep question numbers unique across rounds; restart choice letters at `A` for each question. Give each a recommendation that names its choice letter, ties it to the requirements or research findings, and explains its main tradeoff. Ask open-ended questions directly when choices would be artificial.
+
+```markdown
+❓ **Q1 — How should we represent the approval workflow?**
+
+- **A.** An explicit transition table in the existing module
+- **B.** A state-machine library
+
+➡️ **Recommended: A** — The specified workflow has four states and
+simple transitions. A table makes allowed transitions explicit with
+little integration work; nested or parallel states could justify a library later.
+```
+
+Accept brief replies such as `Q1 A`, custom answers, and modifications to choices. Record answers before moving to dependent questions.
+
 Distinguish verified facts, proposed designs, and remaining assumptions. When a choice depends on missing evidence, identify what would resolve it and which part of the design remains uncertain.
 
-Amend the supplied contract or spec with agreed technical decisions, their rationale, and the details implementers need to preserve. Integrate changes into its existing structure, preserving identifiers and unrelated content. Keep unresolved choices explicit. Without a supplied file, return the proposed additions in conversation.
-
-Continue until the in-scope technical choices are resolved or explicitly open with their implementation consequences understood. Finish with a brief recap of the changes, amended paths, and remaining uncertainties.
+Continue until the in-scope technical choices are resolved or explicitly open with their implementation consequences understood. Finish with a concise discussion summary of settled technical decisions, their rationale, proposed contract additions or changes, and remaining uncertainties.

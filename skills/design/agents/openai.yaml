@@ -1,5 +1,5 @@
 interface:
   display_name: "Design"
-  short_description: "Resolve technical decisions and refine the contract"
+  short_description: "Explore technical approaches and summarize decisions"
 policy:
   allow_implicit_invocation: false
