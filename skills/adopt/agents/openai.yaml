@@ -1,0 +1,5 @@
+interface:
+  display_name: "Adopt"
+  short_description: "Adopt a chosen prototype by reconciling it with current use cases"
+policy:
+  allow_implicit_invocation: false

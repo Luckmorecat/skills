@@ -12,7 +12,7 @@ Record the fixed point the review pins against with `git rev-parse HEAD 2>/dev/n
 
 Run the cheapest relevant baseline check. Use `tdd` where possible, at pre-agreed seams. Run focused checks regularly and the full relevant suite at the end; exercise the API or UI when needed to prove acceptance.
 
-Reconcile discoveries before dependent implementation or commit. Correct internal implementation choices within approved constraints; ask before changing approved behaviour, including a contract's UI reference, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, or an expensive-to-reverse choice.
+Reconcile discoveries before dependent implementation or commit. Correct internal implementation choices within approved constraints; ask before changing approved behaviour, including a contract's prototype reference, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, or an expensive-to-reverse choice.
 
 Once done, use `code-review`, passing the fixed point, any dirty snapshot, the complete work contract, and verification evidence. Fix blocking findings and rerun affected verification so the committed changes are verified.
 
