@@ -1,6 +1,6 @@
 # Striker skills
 
-Ten workflow skills for shaping an idea, resolving design decisions, auditing usability, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
+Eleven workflow skills for shaping an idea, resolving design decisions, auditing usability, reconciling a chosen prototype with the current interface, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -10,6 +10,7 @@ Ten workflow skills for shaping an idea, resolving design decisions, auditing us
 | `contract` | Write a work contract from settled conversation or documents. |
 | `design` | Resolve a focused technical decision and amend the work contract. |
 | `ux` | Audit an interface through its users' tasks and recommend usability improvements. |
+| `reconcile` | Reconcile a chosen UI prototype with current use cases and settle the gaps. |
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
 | `land` | Implement requested work and commit it green. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
@@ -29,6 +30,7 @@ Ten workflow skills for shaping an idea, resolving design decisions, auditing us
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
 | A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
 | An interface is confusing or needs a usability pass | `ux`, then `land` or `contract` for the settled changes |
+| A prototype settled the UI | `reconcile`, then `contract`; `reconcile` again when implementation raises discrepancies |
 | A breakdown needs revision or a slice needs preparation | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
 | A worktree of changes needs to land as commits | `commit` |
@@ -43,6 +45,8 @@ Ten workflow skills for shaping an idea, resolving design decisions, auditing us
 `design` frames a named technical question, inspects evidence, compares alternatives against explicit criteria, and checks the recommendation against concrete scenarios. It folds agreed decisions into the existing contract. Use it when you want deeper design work; `define` still resolves consequential decisions on its own. Missing evidence produces a bounded investigation, and affected slice plans return to `slice` for revision.
 
 `ux` frames the users, their main tasks, and context of use, then dispatches subagents to inventory the interface, walk through each task in the running UI, research comparable patterns, and check accessibility. Findings are tied to a task step, a principle from its `PRINCIPLES.md`, and evidence, and rated by severity. It recommends changes without editing product code. Choices that need to be seen are handed to a separate `prototype` skill, and the returned variants are evaluated against the same tasks.
+
+`reconcile` makes a chosen prototype safe to implement as the UI source of truth. It pins the reference, maps every use case the current interface supports as kept, changed, unshown, dropped, or conflicting, and settles precedence so defaults resolve most gaps. It asks about the rest and records answers in the contract's UI reference ledger. Implementation treats the reference as approved behavior: `land` and `next-slice` raise discrepancies with it, and `reconcile` settles them in a batch.
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
 
@@ -72,7 +76,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all eleven globally for Codex:
+Install all twelve globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -91,7 +95,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all eleven globally for Claude Code:
+Install all twelve globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes

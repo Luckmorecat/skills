@@ -1,0 +1,5 @@
+interface:
+  display_name: "Reconcile"
+  short_description: "Reconcile a chosen prototype with current use cases"
+policy:
+  allow_implicit_invocation: false
