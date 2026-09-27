@@ -1,0 +1,5 @@
+interface:
+  display_name: "UX"
+  short_description: "Audit a user interface and recommend usability improvements"
+policy:
+  allow_implicit_invocation: false
