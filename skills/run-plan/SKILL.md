@@ -7,7 +7,7 @@ Orchestrate the supplied plan through completion. Use its established path or as
 
 Start with an inspection subagent: read the plan and checkpoints, check repository state, and identify interrupted work or the next eligible slice. Use the existing plan and log as the source of truth. Resume interrupted work before starting another slice.
 
-Dispatch a fresh execution subagent for each slice. Give it the plan path, slice ID, relevant user decisions, and any recovery report. Instruct it to read and follow `next-slice`, completing only that slice. Run one slice at a time; wait for its worker to finish before handing off the workspace.
+Dispatch a fresh execution subagent for each slice. Give it the plan path, slice ID, relevant user decisions, any recovery report, and the absolute path of `next-slice/SKILL.md`, a sibling of this skill's directory. `next-slice` is manual-only, so instruct the worker to read that file directly instead of invoking it as a skill, resolve its relative links from its directory, and follow it, completing only that slice. Run one slice at a time; wait for its worker to finish before handing off the workspace.
 
 Tell workers to return required subagent assignments and context when nested delegation is unavailable, preserving independent review instead of substituting self-review. Dispatch those assignments directly, sequentially if capacity requires, and relay the results before resuming the worker.
 
