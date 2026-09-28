@@ -1,6 +1,6 @@
 # Striker skills
 
-Eleven workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time, and reviewing and committing changes, plus one for explaining a topic visually.
+Twelve workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time, handing settled work to subagents, and reviewing and committing changes, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -13,6 +13,7 @@ Eleven workflow skills for shaping an idea, resolving design decisions, auditing
 | `adopt` | Adopt a chosen UI or logic prototype by reconciling it with current use cases. |
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
 | `land` | Implement requested work and commit it green. |
+| `delegate` | Land a contract from the session that settled it through subagents. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
 | `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
 | `code-review` | Review a pinned change against repository standards and an optional approved plan. |
@@ -26,6 +27,7 @@ Eleven workflow skills for shaping an idea, resolving design decisions, auditing
 | An idea or feature needs exploration | `define` |
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
+| A small change settled in the current session, with context to preserve | `contract`, then `delegate` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
 | A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
@@ -36,7 +38,7 @@ Eleven workflow skills for shaping an idea, resolving design decisions, auditing
 | A worktree of changes needs to land as commits | `commit` |
 | A discussion needs a picture | `show-me` |
 
-`land` and `next-slice` both invoke `code-review` themselves. Run it directly to review a branch, a pull request, or anything since a commit.
+`land`, `next-slice`, and `delegate` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and subagent discovery to resolve consequential choices. It finishes with a brief conversational recap of settled decisions and remaining uncertainties. The user chooses what happens next.
 
@@ -49,6 +51,8 @@ Eleven workflow skills for shaping an idea, resolving design decisions, auditing
 `adopt` makes a chosen prototype safe to implement as the source of truth for what it settles, whether an interface or logic such as a state model. It pins the reference, maps every use case the current system supports as kept, changed, unshown, dropped, or conflicting, and settles precedence so defaults resolve most gaps. It asks about the rest and records answers in the contract's prototype reference ledger. Per-kind checklists and default precedence live in its `KINDS.md`. Implementation treats the reference as approved behavior: `land` and `next-slice` raise discrepancies with it, and `adopt` settles them in a batch.
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
+
+`delegate` lands a contract from the session that settled it, first amending the contract with decisions the conversation settled, then having workers follow `land` up to review while it answers their questions or escalates them to you. It uses one worker by default and splits only disjoint work into sequential chunks or parallel worktrees, followed by an integration worker. An isolated review follows, then a worker commits; with autonomy granted, it decides open choices itself and records them in the commit message.
 
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
 
@@ -76,7 +80,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all twelve globally for Codex:
+Install all thirteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -95,7 +99,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all twelve globally for Claude Code:
+Install all thirteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
