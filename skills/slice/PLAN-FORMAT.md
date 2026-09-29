@@ -43,7 +43,7 @@ Create one file per slice. A blocked slice records what is known and its unresol
 <How to demonstrate acceptance, including any required integration check.>
 ```
 
-Include slice-specific constraints and exclusions where needed. Carry forward acceptance identifiers when the input has them. Add code pointers or snippets only when they preserve a decision or materially help navigation; distinguish inspected code from proposed structure. Verification describes observable proof; include commands when known and recheck them during execution.
+Include slice-specific constraints and exclusions where needed. A `## Notes` section holds findings earlier slices recorded for this one; keep it when revising. Carry forward acceptance identifiers when the input has them. Add code pointers or snippets only when they preserve a decision or materially help navigation; distinguish inspected code from proposed structure. Verification describes observable proof; include commands when known and recheck them during execution.
 
 ## log.md
 

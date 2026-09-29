@@ -30,6 +30,6 @@ Invoke `code-review` when available with the original fixed point, dirty snapsho
 
 Record owned changes and verification/review evidence before committing. Commit only this slice's verified work. Mark the slice `complete` in the plan after recording landed revisions and acceptance evidence with no blocking findings; a no-code experiment records its result and unchanged revision.
 
-Update the log checkpoint and correct stale factual pointers. Log deviations, downstream findings, and the next action concisely. On a blocker or interruption, preserve the original baseline and owned changes as `blocked` or `in-progress`.
+Update the log checkpoint and correct stale factual pointers. Log deviations and the next action concisely. Add each downstream finding to the file of the slice it affects under `## Notes`, naming this slice; hand one that would change that slice's scope or acceptance to `slice` instead. On a blocker or interruption, preserve the original baseline and owned changes as `blocked` or `in-progress`.
 
 Stop after one slice by default. User-authorized bounded continuation may execute further eligible slices through the same gates. Stop at the bound or when no eligible slice remains; report unresolved blockers with the plan path. Declare completion only when every agreed outcome, including required integration checks, has evidence.
