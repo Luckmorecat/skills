@@ -1,0 +1,5 @@
+interface:
+  display_name: "Run plan in parallel"
+  short_description: "Run independent slices concurrently in worktrees"
+policy:
+  allow_implicit_invocation: false

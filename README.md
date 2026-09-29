@@ -1,6 +1,6 @@
 # Striker skills
 
-Twelve workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time, handing settled work to subagents, and reviewing and committing changes, plus one for explaining a topic visually.
+Thirteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time or several in parallel, handing settled work to subagents, and reviewing and committing changes, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -16,6 +16,7 @@ Twelve workflow skills for shaping an idea, resolving design decisions, auditing
 | `delegate` | Land a contract from the session that settled it through subagents. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
 | `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
+| `run-plan-parallel` | Run independent slices of a plan concurrently in isolated worktrees, integrating each onto the target branch. |
 | `code-review` | Review a pinned change against repository standards and an optional approved plan. |
 | `commit` | Group changes into semantic commits and create them. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
@@ -30,6 +31,7 @@ Twelve workflow skills for shaping an idea, resolving design decisions, auditing
 | A small change settled in the current session, with context to preserve | `contract`, then `delegate` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
+| A prepared plan has independent slices worth running at once | `run-plan-parallel` for concurrent execution in worktrees |
 | A technical decision needs deeper examination | Optional `design` during or after `define`, before dependent implementation |
 | An interface is confusing or needs a usability pass | `ux`, then `land` or `contract` for the settled changes |
 | A prototype settled the UI or logic | `adopt`, then `contract`; `adopt` again when implementation raises discrepancies |
@@ -56,6 +58,8 @@ Twelve workflow skills for shaping an idea, resolving design decisions, auditing
 
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
 
+`run-plan-parallel` follows `run-plan` but runs up to three eligible slices at once, each in its own worktree and branch from the current tip, with its own instances of the resources its verification needs. It requires a clean tree and serializes slices likely to touch the same files or to share a resource that cannot be duplicated. Workers follow `next-slice` but keep their checkpoints in per-slice files, leaving the rest of the plan directory to one subagent at a time. An integrator rebases and re-verifies each committed slice, then fast-forwards the target branch; a slice is complete only once integrated, and an interrupted integration resumes where it stopped. Blockers go through its own reconciler under the same autonomy rules as `run-plan`; gaps no slice owns become new slices.
+
 ## Where plans live
 
 Contracts and slice plans live outside the repository. `define` presents its recap in the conversation. Saved contracts and plans use this storage root:
@@ -66,7 +70,7 @@ ${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/
   plans/<repo>/<slug>-<date>/{plan,NN-slug,log}.md
 ```
 
-`plan.md` holds shared context and the dependency/status table. Each slice has its own outcome, acceptance, and verification; `log.md` holds recovery state and evidence. Plans remain self-contained whether their source is conversation or a contract. Existing plans retain their layout and checkpoint history; `next-slice` can still execute prepared slices from the older spine/map format.
+`plan.md` holds shared context and the dependency/status table. Each slice has its own outcome, acceptance, and verification; `log.md` holds recovery state and evidence. `run-plan-parallel` adds `checkpoints/<ID>.md` and `worktrees/<ID>/` beside them while slices are in flight; worktrees move under the storage root when the plan directory is inside the repository. Plans remain self-contained whether their source is conversation or a contract. Existing plans retain their layout and checkpoint history; `next-slice` can still execute prepared slices from the older spine/map format.
 
 Export `STRIKER_ROOT` from your shell profile rather than per invocation. The planning session and the implementing session are different shells by design, and a root set in one and unset in the other sends the second somewhere else.
 
@@ -80,7 +84,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all thirteen globally for Codex:
+Install all fourteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -99,7 +103,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all thirteen globally for Claude Code:
+Install all fourteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
