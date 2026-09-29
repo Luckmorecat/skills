@@ -16,7 +16,7 @@ For a new slice, mark its status and checkpoint `in-progress`. Before implementa
 
 ## 2. Implement
 
-Build against the slice's acceptance and the shared constraints. Inspect the relevant implementation and discover current verification commands before editing; create missing checks needed to prove acceptance. Resolve consequential choices that change agreed behavior, including a contract's prototype reference, interfaces, data, security/privacy, deployment, dependencies, cost, or ownership with the user before dependent work, unless already approved or delegated. Use `tdd` at approved seams when available, otherwise follow the same test-first loop. Run focused checks during development and the full relevant suite at completion.
+Build against the slice's acceptance and the shared constraints. Inspect the relevant implementation and discover current verification commands before editing; create missing checks needed to prove acceptance. Resolve consequential choices that change agreed behavior, including the plan's prototype reference, interfaces, data, security/privacy, deployment, dependencies, cost, or ownership with the user before dependent work, unless already approved or delegated. Use `tdd` at approved seams when available, otherwise follow the same test-first loop. Run focused checks during development and the full relevant suite at completion.
 
 Correct stale code pointers and record discoveries as they occur. If a missing prerequisite or necessary scope/acceptance change prevents execution, checkpoint the concrete blocker and hand back to `slice` before dependent work.
 

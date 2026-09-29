@@ -4,7 +4,7 @@ description: Break settled context into verifiable vertical slices with explicit
 disable-model-invocation: true
 ---
 
-Turn the agreed feature into slices an agent can implement and verify in a fresh session. Work from the conversation, supplied contract, or existing plan. Reuse settled decisions; surface missing choices that change scope, behavior, constraints, or dependencies before preparing affected work.
+Turn the agreed feature into slices an agent can implement and verify in a fresh session. Work from the conversation, supplied contract, or existing plan. Reuse settled decisions and carry their approval or delegation status, delegated discretion, precedence rules, and any prototype reference into the plan, whichever the source; surface missing choices that change scope, behavior, constraints, or dependencies before preparing affected work.
 
 Inspect the relevant implementation and project conventions. Ground the breakdown in current behavior and known constraints. Separate facts from proposed changes.
 

@@ -12,7 +12,7 @@ Honor a supplied destination. Otherwise create an unused directory under `${STRI
 
 ## plan.md
 
-Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions, with source references when available. Record the repository root, remote when available, branch/worktree, and planning revision (or `unborn`). Separate verified facts from assumptions.
+Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions with their approval or delegation status, with source references when available, including the absolute path of a source contract. Record delegated discretion with its constraints and any precedence rules, so execution settles the choices they cover without asking. When a prototype reference settles the interface or logic, carry its pinned reference and kind, what it settles and leaves open, and its `D<n>` ledger with IDs and status. Record the repository root, remote when available, branch/worktree, and planning revision (or `unborn`). Separate verified facts from assumptions.
 
 List every slice in a compact table:
 
@@ -49,4 +49,4 @@ Include slice-specific constraints and exclusions where needed. A `## Notes` sec
 
 Keep a current checkpoint with the active slice, original starting revision, pre-existing dirty snapshot, owned changes, verification/review evidence, landed revisions, and blocker or next action. Initialize it as not started. Append concise history at checkpoints; completed claims require evidence.
 
-When revising a plan, retain completed work, IDs, and recovery state; record the reason for changed unfinished work. Existing plans using `contract.md`, `spine.md`, and `map.md` can retain their layout. Update their equivalent fields in place rather than forcing a migration.
+When revising a plan, retain completed work, IDs, and recovery state; carry amended decisions, discretion, precedence, and ledger entries into the shared context, and record the reason for changed unfinished work. Existing plans using `contract.md`, `spine.md`, and `map.md` can retain their layout. Update their equivalent fields in place rather than forcing a migration.

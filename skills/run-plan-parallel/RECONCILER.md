@@ -15,8 +15,8 @@ With a grant, decide unless the decision would:
 - contradict a decision the user made explicitly;
 - leave the result unverifiable with the plan's checks.
 
-Escalate those as without a grant. Otherwise apply the contract's precedence rules and delegated discretion, then these defaults in order: never drop an existing capability; stay closest to the approved intent; prefer the option cheapest to undo; prefer the smallest change that satisfies acceptance.
+Escalate those as without a grant. Otherwise apply the plan's precedence rules and delegated discretion, consulting its source contract where the plan is silent, then these defaults in order: never drop an existing capability; stay closest to the approved intent; prefer the option cheapest to undo; prefer the smallest change that satisfies acceptance.
 
-Record each decision in `log.md` as a `D<n>` entry with status `pending-review`: what came up, decision, alternatives, reason, undo cost, and dependent slices, marking those running. Revise affected slice files within the decision.
+Record each decision in `log.md` as an `R<n>` entry with status `pending-review`: what came up, decision, alternatives, reason, undo cost, and dependent slices, marking those running. Revise affected slice files within the decision.
 
 Return the decision and its entry, the running slices it revises, any new scheduling constraints, any new slice, and any target tip you recorded.
