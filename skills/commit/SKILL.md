@@ -19,7 +19,7 @@ Group implementation with the tests, docs, schema, and config that complete it. 
 
 ## Message
 
-Write a subject line only, in the imperative, under 72 characters, formatted `type(scope): subject`. Types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`. When a task ID is given, use it as the scope on the commits that genuinely belong to it, and leave the rest without a scope: `feat(UP-12170): wire validation config to scene usages`. Where a hook or repository convention requires a trailer, show the finished message with the trailer in the plan.
+Write a subject line in the imperative, under 72 characters, formatted `type(scope): subject`. Add a body only for content a caller supplies for the message, such as decisions or facts worth keeping: put it on the commits it concerns, after a blank line, wrapped at 72 characters. Types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`. When a task ID is given, use it as the scope on the commits that genuinely belong to it, and leave the rest without a scope: `feat(UP-12170): wire validation config to scene usages`. Where a hook or repository convention requires a trailer, show the finished message with the trailer in the plan.
 
 ## Plan and approval
 
