@@ -1,5 +1,5 @@
 ---
-name: delegate
+name: weave
 description: Land work whose intent the current session settled, orchestrating subagents that implement, review, and commit it green.
 disable-model-invocation: true
 ---

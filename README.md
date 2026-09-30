@@ -14,7 +14,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
 | `implement` | Implement requested work and verify it green, leaving it uncommitted. |
 | `land` | Implement requested work, review it, and commit it green. |
-| `delegate` | Land work settled in the current session through subagents. |
+| `weave` | Land work settled in the current session through subagents. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
 | `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
 | `run-plan-parallel` | Run independent slices of a plan concurrently in isolated worktrees, integrating each onto the target branch. |
@@ -31,7 +31,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
 | A change you want to review or commit yourself | `implement` |
-| A small change settled in the current session, with context to preserve | `delegate` |
+| A small change settled in the current session, with context to preserve | `weave` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
 | A prepared plan has independent slices worth running at once | `run-plan-parallel` for concurrent execution in worktrees |
@@ -44,9 +44,9 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | Comments narrate a change or excuse workarounds | `no-comments`, then `design` or `land` for its open flags |
 | A discussion needs a picture | `show-me` |
 
-`land`, `next-slice`, and `delegate` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
+`land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
-`implement` builds and verifies the requested work green, then stops with changed paths, evidence, and blockers, leaving the changes uncommitted. `land` takes the same steps, then runs `code-review` and hands the reviewed tree to `commit`. `delegate` workers take them from its `WORKER.md`. Each skill carries its own copy so it installs on its own; change the three together.
+`implement` builds and verifies the requested work green, then stops with changed paths, evidence, and blockers, leaving the changes uncommitted. `land` takes the same steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take them from its `WORKER.md`. Each skill carries its own copy so it installs on its own; change the three together.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and subagent discovery to resolve consequential choices. It finishes with a brief conversational recap of settled decisions and remaining uncertainties. The user chooses what happens next.
 
@@ -60,7 +60,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. The plan carries delegated discretion, precedence rules, and any prototype reference, so execution settles what they cover the same way with or without a contract. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
 
-`delegate` lands work whose intent the current session settled, orchestrating subagents while the main thread keeps the conversation's intent and decisions. It first writes workers a brief of the goal, acceptance, scope, and settled decisions, amending a supplied contract where the conversation changed it, then has workers follow its `WORKER.md` while it answers their questions or escalates them to you. It splits the work where parts can proceed independently or would overload one worker, running independent chunks in parallel worktrees followed by an integration worker, and dependent ones in sequence. An isolated review follows, then a worker commits through `commit`; with autonomy granted, it decides choices the brief leaves open, except hard stops such as data loss, security, public contracts, or cost, and records them in the commit message.
+`weave` lands work whose intent the current session settled, orchestrating subagents while the main thread keeps the conversation's intent and decisions. It first writes workers a brief of the goal, acceptance, scope, and settled decisions, amending a supplied contract where the conversation changed it, then has workers follow its `WORKER.md` while it answers their questions or escalates them to you. It splits the work where parts can proceed independently or would overload one worker, running independent chunks in parallel worktrees followed by an integration worker, and dependent ones in sequence. An isolated review follows, then a worker commits through `commit`; with autonomy granted, it decides choices the brief leaves open, except hard stops such as data loss, security, public contracts, or cost, and records them in the commit message.
 
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
 
