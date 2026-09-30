@@ -16,6 +16,6 @@ Reconcile discoveries before dependent implementation or commit. Correct interna
 
 Once done, use `code-review`, passing the fixed point, any dirty snapshot, the complete work contract, and verification evidence. Fix blocking findings and rerun affected verification so the committed changes are verified.
 
-Commit your work to the current branch. A fact worth keeping past this work goes into the code, a test, or the commit message.
+Record what future readers of the code need, such as a non-obvious constraint, in the code or a test. Commit only work meeting the green criteria: use `commit`, passing the fixed point, any dirty snapshot, and notes for the message, such as why you chose an approach.
 
-If blocked, preserve the baseline, owned changes, and evidence; report the missing prerequisite or decision. Commit only work meeting the green criteria.
+If blocked, preserve the baseline, owned changes, and evidence; report the missing prerequisite or decision.
