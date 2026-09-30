@@ -1,6 +1,6 @@
 # Striker skills
 
-Thirteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time or several in parallel, handing settled work to subagents, and reviewing and committing changes, plus one for explaining a topic visually.
+Fourteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, delivering one green slice at a time or several in parallel, handing settled work to subagents, reviewing and committing changes, and stripping comments from them, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -19,6 +19,7 @@ Thirteen workflow skills for shaping an idea, resolving design decisions, auditi
 | `run-plan-parallel` | Run independent slices of a plan concurrently in isolated worktrees, integrating each onto the target branch. |
 | `code-review` | Review a pinned change against repository standards and an optional approved plan. |
 | `commit` | Group changes into semantic commits and create them. |
+| `no-comments` | Delete comments from a change through an isolated subagent and report refactor targets. Manual invocation only. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
 
 ## Workflow
@@ -38,6 +39,7 @@ Thirteen workflow skills for shaping an idea, resolving design decisions, auditi
 | A breakdown needs revision or a slice needs preparation | `slice` with the existing plan and checkpoint |
 | Work is in and you want it checked | `code-review` |
 | A worktree of changes needs to land as commits | `commit` |
+| Comments narrate a change or excuse workarounds | `no-comments`, then `design` or `land` for its open flags |
 | A discussion needs a picture | `show-me` |
 
 `land`, `next-slice`, and `delegate` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
@@ -59,6 +61,8 @@ Thirteen workflow skills for shaping an idea, resolving design decisions, auditi
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
 
 `run-plan-parallel` follows `run-plan` but runs up to three eligible slices at once, each in its own worktree and branch from the current tip, with its own instances of the resources its verification needs. It requires a clean tree and serializes slices likely to touch the same files or to share a resource that cannot be duplicated. Workers follow `next-slice` but keep their checkpoints in per-slice files, leaving the rest of the plan directory to one subagent at a time. An integrator rebases and re-verifies each committed slice, then fast-forwards the target branch; a slice is complete only once integrated, and an interrupted integration resumes where it stopped. Blockers go through its own reconciler under the same autonomy rules as `run-plan`; gaps no slice owns become new slices.
+
+`no-comments` sends a fresh subagent to delete comments from the named files or the current diff, keeping only license headers, tool directives, public API docs, constraints imposed by code we cannot change, and a few suppressions. A comment excusing a surprise in our own code dies, and its symbol is flagged `MUST KILL` with the reshape that would make it obvious. The skill audits the sweep, restores deletions that meet an exception, fixes trivial flags, and reports the rest for `design` or `land` without refactoring further. Adapted from Comment Sicko in [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT, © 2026 Lauren Tan).
 
 ## Where plans live
 
@@ -84,7 +88,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all fourteen globally for Codex:
+Install all fifteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -103,7 +107,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all fourteen globally for Claude Code:
+Install all fifteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
