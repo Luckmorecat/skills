@@ -1,0 +1,5 @@
+interface:
+  display_name: "Implement"
+  short_description: "Implement requested work and verify it green, uncommitted"
+policy:
+  allow_implicit_invocation: false
