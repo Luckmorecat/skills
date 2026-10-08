@@ -184,7 +184,7 @@ class StatusAndNextTest(PlanTestCase):
         )
         self.assertEqual(view["blocked"], [{"id": "04", "reason": "needs a decision", "fixed_point": None,
                                             "checkpoint": None}])
-        self.assertEqual(view["run"], {"target": "main", "target_tip": self.tip})
+        self.assertEqual(view["run"], {"target": "main", "target_tip": self.tip, "grant": None})
         self.assertEqual(view["repo"], self.repo)
         self.assertEqual([s["id"] for s in view["slices"]], ["01", "02", "03", "04", "10"])
         self.assertEqual(view["slices"][1]["blocked_by"], [{"id": "01", "supplies": "state model"}])

@@ -35,12 +35,13 @@ class CommandLineTest(PlanTestCase):
         self.assertEqual(result.returncode, 0)
         lines = [line.strip() for line in result.stdout.splitlines()]
         for command in ("init", "import", "slice", "validate", "status", "next", "start", "block", "resume",
-                        "complete"):
+                        "complete", "decide", "decisions", "grant", "revoke"):
             self.assertTrue(any(line.startswith(command + " ") for line in lines), command)
         for field in ("schema", "repo", "run.target", "run.target_tip", "slices.<ID>.file",
                       "slices.<ID>.outcome", "slices.<ID>.status", "slices.<ID>.reason", "slices.<ID>.blocked_by",
                       "planning_revision", "slices.<ID>.fixed_point", "slices.<ID>.snapshot", "slices.<ID>.landed",
-                      "checkpoints/<ID>.md"):
+                      "run.grant", "decisions.<R>.status", "decisions.<R>.undo_cost", "decisions.<R>.slices",
+                      "decisions.<R>.recorded", "decisions.<R>.updated", "checkpoints/<ID>.md"):
             self.assertTrue(any(line.startswith(field) for line in lines), field)
         self.assertIn("--force --reason", result.stdout)
         self.assertTrue(any(line.startswith("--plan DIR") for line in lines))
@@ -58,6 +59,11 @@ class CommandLineTest(PlanTestCase):
             ("block",): ("--force", "--reason", "--plan", "blocked"),
             ("resume",): ("--force", "--reason", "--plan", "in-progress"),
             ("complete",): ("--rev", "--evidence", "--force", "--reason", "--plan", "@FILE", "log.md"),
+            ("decide",): ("--status", "--undo-cost", "--slices", "--body", "--force", "--reason", "--plan", "@FILE",
+                          "R<n>", "irreversible", "log.md"),
+            ("decisions",): ("--pending", "--json", "--plan", "unfinished"),
+            ("grant",): ("--note", "--force", "--reason", "--plan", "run.grant"),
+            ("revoke",): ("--note", "--force", "--reason", "--plan", "run.grant"),
         }
         for command, flags in expectations.items():
             result = self.run_executable(*command, "--help")

@@ -29,6 +29,15 @@ STATUSES = ("ready", "in-progress", "blocked", "complete")
 TABLE_COLUMNS = ("ID", "File", "Outcome", "Blocked by", "Status")
 TABLE_HEADER_TEXT = "| " + " | ".join(TABLE_COLUMNS) + " |"
 EDITABLE_STATUSES = ("ready", "blocked")
+DECISION_STATUSES = ("pending-review", "approved")
+UNDO_COSTS = ("low", "medium", "high", "irreversible")  # cheapest to costliest
+DECISION_ID = re.compile(r"R[1-9][0-9]*")  # used with fullmatch
+# A line that records a decision in prose: `### R3 …`, `## <time> — R3 …`, `- R3 …`, `- **R3** …`, or a
+# plain line starting `R3:` or `R3 (`.
+DECISION_LINE = re.compile(
+    r"^[ \t]*(#{1,6}[ \t]+(?:[^\n—]*—[ \t]+)?|[-*+][ \t]+|\d+[.)][ \t]+)?(?:\*\*|__)?R([1-9][0-9]*)"
+    r"(?:\*\*|__)?(?![A-Za-z0-9_])(.?.?)"
+)
 MAX_REPORTED_CYCLES = 50
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
@@ -48,6 +57,9 @@ state.json fields (written only by `plan`):
                        when unborn); `plan complete` moves it to the live tip
                        when that tip descends from it and every commit between
                        them is one of the slice's landed revisions.
+  run.grant            Autonomy grant for the run: {"granted": <UTC time>,
+                       "note": <text or null>} from `plan grant`; null when not
+                       granted or after `plan revoke`.
   slices.<ID>.file     Slice description file, relative to the plan directory.
   slices.<ID>.outcome  One-line observable outcome.
   slices.<ID>.status   One of: ready, in-progress, blocked, complete.
@@ -60,16 +72,29 @@ state.json fields (written only by `plan`):
                        "" when clean (null when not recorded).
   slices.<ID>.landed   Revisions `plan complete` recorded as landed: full shas,
                        or the text given under --force (null until complete).
+  decisions            Decision index keyed R1, R2, … in the order `plan decide`
+                       allocated them; each decision's prose is in log.md under
+                       its `R<n>` entry.
+  decisions.<R>.status pending-review or approved.
+  decisions.<R>.undo_cost
+                       One of: low, medium, high, irreversible.
+  decisions.<R>.slices Dependent slice IDs.
+  decisions.<R>.recorded
+                       UTC time `plan decide` recorded the decision.
+  decisions.<R>.updated
+                       UTC time of its last update (null until updated).
 
-planning_revision, fixed_point, snapshot, and landed may be absent from a
-state.json written by an earlier `plan`; they read as null.
+planning_revision, fixed_point, snapshot, landed, and run.grant may be absent
+from a state.json written by an earlier `plan`; they read as null, and an
+absent decisions reads as {}.
 
 Other files in the plan directory:
   plan.md              Prose; `plan` regenerates only the marked status block.
   log.md               History; `plan` appends dated entries for imports,
                        start, block, resume, and complete (with the evidence
-                       and the folded checkpoint), and forced overrides with
-                       their reasons.
+                       and the folded checkpoint), decisions (`R<n>` entries
+                       with their prose), grants and revocations, and forced
+                       overrides with their reasons.
   checkpoints/<ID>.md  Current checkpoint prose of a started slice, written by
                        agents; `plan start` creates it, `plan complete` folds
                        it into log.md and deletes it.
@@ -78,10 +103,10 @@ Other files in the plan directory:
 
 FORCE_HELP = """\
 Guarded refusals (`slice add|edit` status changes outside ready/blocked, and
-each refusal of start, block, resume, and complete) are overridden with
---force --reason <text>; the override and reason are appended to log.md.
-Integrity errors (duplicate IDs, missing dependencies, cycles) are never
-overridden.
+each refusal of start, block, resume, complete, decide, grant, and revoke) are
+overridden with --force --reason <text>; the override and reason are appended
+to log.md. Integrity errors (duplicate IDs, missing dependencies, cycles,
+unknown decisions, decisions naming missing slices) are never overridden.
 """
 
 
@@ -267,8 +292,11 @@ def load_state(plan_dir):
 
 
 def fill_later_fields(state):
-    """Reads fields added after schema 1 was first written as null when absent."""
+    """Reads fields added after schema 1 was first written as null (decisions as {}) when absent."""
     state.setdefault("planning_revision", None)
+    state.setdefault("decisions", {})
+    if isinstance(state.get("run"), dict):
+        state["run"].setdefault("grant", None)
     slices = state.get("slices")
     for s in slices.values() if isinstance(slices, dict) else ():
         if isinstance(s, dict):
@@ -292,9 +320,16 @@ def shape_problems(state):
         problems.append("repo must be a string")
     if wrong(state.get("planning_revision", 0), (str, type(None))):
         problems.append("planning_revision must be a string or null")
+    optional = (str, type(None))
     run = state.get("run")
-    if wrong(run, dict) or wrong(run.get("target"), str) or wrong(run.get("target_tip"), (str, type(None))):
+    if wrong(run, dict) or wrong(run.get("target"), str) or wrong(run.get("target_tip"), optional):
         problems.append("run must hold target (string) and target_tip (string or null)")
+    elif run.get("grant") is not None and (
+        wrong(run["grant"], dict) or wrong(run["grant"].get("granted"), str)
+        or "note" not in run["grant"] or wrong(run["grant"]["note"], optional)
+    ):
+        problems.append("run.grant must be null or {granted (string), note (string or null)}")
+    problems += decision_shape_problems(state.get("decisions", {}))
     slices = state.get("slices")
     if wrong(slices, dict):
         return problems + ["slices must be an object keyed by slice ID"]
@@ -302,7 +337,6 @@ def shape_problems(state):
         if wrong(s, dict):
             problems.append(f"slices.{sid} must be an object")
             continue
-        optional = (str, type(None))
         for field, kinds in (("file", str), ("outcome", str), ("status", str), ("reason", optional),
                              ("fixed_point", optional), ("snapshot", optional)):
             if field not in s or wrong(s[field], kinds):
@@ -318,9 +352,28 @@ def shape_problems(state):
     return problems
 
 
+def decision_shape_problems(decisions):
+    if not isinstance(decisions, dict):
+        return ["decisions must be an object keyed by decision ID"]
+    problems = []
+    for did, d in decisions.items():
+        if not DECISION_ID.fullmatch(did):
+            problems.append(f"decision ID {did!r} must be R<n>")
+        if not isinstance(d, dict):
+            problems.append(f"decisions.{did} must be an object")
+            continue
+        for field, kinds in (("status", str), ("undo_cost", str), ("recorded", str), ("updated", (str, type(None)))):
+            if field not in d or not isinstance(d[field], kinds):
+                problems.append(f"decisions.{did}.{field} is missing or has the wrong type")
+        if not isinstance(d.get("slices"), list) or any(not isinstance(i, str) for i in d["slices"]):
+            problems.append(f"decisions.{did}.slices must be a list of slice IDs")
+    return problems
+
+
 def state_text(state):
     ordered = dict(state)
     ordered["slices"] = {sid: state["slices"][sid] for sid in sorted_ids(state["slices"])}
+    ordered["decisions"] = {did: state["decisions"][did] for did in sorted_decision_ids(state["decisions"])}
     return json.dumps(ordered, indent=2, ensure_ascii=False) + "\n"
 
 
@@ -546,7 +599,30 @@ def state_problems(state):
             problems.append(f"slice {sid} has unknown status {s.get('status')!r}")
         elif s["status"] == "blocked" and not s.get("reason"):
             problems.append(f"slice {sid} is blocked without a reason")
-    return problems + id_collisions(state["slices"]) + graph_problems(state["slices"])
+    for did in sorted_decision_ids(state["decisions"]):
+        d = state["decisions"][did]
+        if d["status"] not in DECISION_STATUSES:
+            problems.append(f"decision {did} has unknown status {d['status']!r}")
+        if d["undo_cost"] not in UNDO_COSTS:
+            problems.append(f"decision {did} has unknown undo cost {d['undo_cost']!r}")
+    return problems + integrity_problems(state)
+
+
+def integrity_problems(state):
+    """Problems no write may leave behind, --force or not."""
+    return id_collisions(state["slices"]) + graph_problems(state["slices"]) + decision_references(state)
+
+
+def sorted_decision_ids(decisions):
+    return sorted(decisions, key=lambda did: int(did[1:]))
+
+
+def decision_references(state):
+    return [
+        f"decision {did} names slice {sid}, which does not exist"
+        for did in sorted_decision_ids(state["decisions"])
+        for sid in state["decisions"][did]["slices"] if sid not in state["slices"]
+    ]
 
 
 # ---------------------------------------------------------------- writes
@@ -611,7 +687,7 @@ def write_plan(plan_dir, label, change, guard):
         state = load_state(plan_dir)
         check_plan_file(plan_dir)
         effects = change(state) or Effects()
-        problems = id_collisions(state["slices"]) + graph_problems(state["slices"])
+        problems = integrity_problems(state)
         if problems:
             raise PlanError("refused: " + "; ".join(problems))
         log_path = os.path.join(plan_dir, LOG_FILE)
@@ -720,8 +796,9 @@ def cmd_init(args):
             "schema": SCHEMA_VERSION,
             "repo": repo,
             "planning_revision": tip,
-            "run": {"target": args.target, "target_tip": tip},
+            "run": {"target": args.target, "target_tip": tip, "grant": None},
             "slices": {},
+            "decisions": {},
         }
         save_state(plan_dir, state)
         log_path = os.path.join(plan_dir, LOG_FILE)
@@ -809,7 +886,11 @@ def status_view(plan_dir, state):
 def render_status(view):
     run = view["run"]
     tip = f"at {run['target_tip']}" if run["target_tip"] else "(unborn)"
-    lines = [f"Plan: {view['plan']}", f"Repository: {view['repo']}", f"Target: {run['target']} {tip}", ""]
+    grant = run["grant"]
+    autonomy = "not granted" if grant is None else f"granted {grant['granted']}" + (
+        f" ({grant['note']})" if grant["note"] else "")
+    lines = [f"Plan: {view['plan']}", f"Repository: {view['repo']}", f"Target: {run['target']} {tip}",
+             f"Autonomy: {autonomy}", ""]
     lines += render_table(view["slices"]) + [""]
     lines.append("Eligible: " + (", ".join(view["eligible"]) or "none"))
     in_progress = [f"{row['checkpoint']}  (fixed point {row['fixed_point'] or 'not recorded'})"
@@ -1009,15 +1090,15 @@ def cmd_resume(args):
     print(f"Resumed slice {args.id} as {outcome['status']}")
 
 
-def read_evidence(value):
-    """Returns evidence text, reading `@path` (relative to the current directory) from a file."""
+def read_text_argument(value, what):
+    """Returns an argument's text, reading `@path` (relative to the current directory) from a file."""
     if not value.startswith("@"):
         return value
     path = os.path.abspath(value[1:])
     try:
         return read_text(path)
     except OSError as exc:
-        raise PlanError(f"cannot read evidence file {path}: {exc.strerror or exc}")
+        raise PlanError(f"cannot read {what} file {path}: {exc.strerror or exc}")
 
 
 def landed_revision(state, s, rev, guard):
@@ -1062,7 +1143,7 @@ def cmd_complete(args):
     check_force_reason(args)
     guard = Guard(args)
     plan_dir = plan_dir_of(args)
-    evidence = read_evidence(args.evidence)
+    evidence = read_text_argument(args.evidence, "evidence")
 
     def change(state):
         s = get_slice(state, args.id)
@@ -1086,6 +1167,171 @@ def cmd_complete(args):
 
     write_plan(plan_dir, f"complete {args.id}", change, guard)
     print(f"Completed slice {args.id}")
+
+
+# ---------------------------------------------------------------- decisions and autonomy
+
+
+def parse_slice_list(values):
+    """Reads --slices values: IDs separated by commas or spaces, repeatable; `none` alone means no slices."""
+    ids = [i for value in values for i in re.split(r"[\s,]+", value) if i]
+    if len(ids) == 1 and ids[0].lower() == "none":
+        return []
+    if not ids:
+        raise PlanError("--slices needs slice IDs, or `none` for a decision with no dependent slice")
+    for i, sid in enumerate(ids):
+        check_id(sid)
+        if sid in ids[:i]:
+            raise PlanError(f"slice {sid} is listed twice")
+    return ids
+
+
+def id_list(ids):
+    return ", ".join(ids) or "none"
+
+
+def unfinished_slices(state, ids):
+    return [sid for sid in ids if state["slices"].get(sid, {}).get("status") != "complete"]
+
+
+def decision_line_number(line):
+    """Returns the n of a line recording decision R<n>, or None."""
+    match = DECISION_LINE.match(line)
+    if not match or not (match.group(1) or match.group(3) == " (" or match.group(3).startswith(":")):
+        return None
+    return int(match.group(2))
+
+
+def next_decision_id(plan_dir, decisions):
+    """Allocates the R<n> after the highest one in the index.
+
+    The first decision of a plan continues after the highest R<n> that log.md
+    records as a decision (a heading or list item starting with it, or a line
+    starting `R<n>:` or `R<n> (`, outside code fences), so the prose-only decisions of an
+    imported plan keep their numbers; an R<n> mentioned inside a sentence does
+    not count.
+    """
+    if decisions:
+        return f"R{max(int(did[1:]) for did in decisions) + 1}"
+    log_path = os.path.join(plan_dir, LOG_FILE)
+    lines = read_text(log_path).splitlines() if os.path.exists(log_path) else []
+    numbers = [n for _, line in unfenced(lines) for n in [decision_line_number(line)] if n]
+    return f"R{max(numbers, default=0) + 1}"
+
+
+def cmd_decide(args):
+    check_force_reason(args)
+    guard = Guard(args)
+    plan_dir = plan_dir_of(args)
+    if args.id is not None and not DECISION_ID.fullmatch(args.id):
+        raise PlanError(f"decision ID {args.id!r} must be R<n>, such as R1")
+    slices = None if args.slices is None else parse_slice_list(args.slices)
+    body = None if args.body is None else read_text_argument(args.body, "body")
+    if args.id is None:
+        missing = [flag for flag, value in (("--undo-cost", args.undo_cost), ("--slices", slices), ("--body", body))
+                   if value is None]
+        if missing:
+            raise PlanError("a new decision requires " + ", ".join(missing))
+    outcome = {}
+
+    def change(state):
+        decisions = state["decisions"]
+        if args.id is None:
+            guard.check(body.strip() != "", "body is empty")
+            did = next_decision_id(plan_dir, decisions)
+            decisions[did] = {"status": args.status, "undo_cost": args.undo_cost, "slices": slices,
+                              "recorded": utc_now(), "updated": None}
+            lines = [f"Status: {args.status}", f"Undo cost: {args.undo_cost}",
+                     f"Slices: {id_list(slices)} (unfinished: {id_list(unfinished_slices(state, slices))})"]
+        else:
+            did, d = args.id, decisions.get(args.id)
+            if d is None:
+                raise PlanError(f"decision {did} does not exist")
+            was = d["status"]
+            # the same slices in another order revise nothing
+            new_slices = None if slices is None or set(slices) == set(d["slices"]) else slices
+            revises = (args.undo_cost not in (None, d["undo_cost"]) or new_slices is not None
+                       or bool(body and body.strip()))
+            if was == args.status:
+                guard.check(was == "pending-review" and revises,
+                            f"decision {did} is already {was}" + ("" if was == "approved" else
+                                                                 "; pass --undo-cost, --slices, or --body to amend it"))
+            else:
+                guard.check(was == "pending-review", f"decision {did} is {was}; it cannot return to {args.status}")
+            lines = [f"Status: {was} -> {args.status}" if was != args.status
+                     else f"Status: {was}" + (" (amended)" if revises else "")]
+            if args.undo_cost and args.undo_cost != d["undo_cost"]:
+                lines.append(f"Undo cost: {d['undo_cost']} -> {args.undo_cost}")
+            if new_slices is not None:
+                lines.append(f"Slices: {id_list(d['slices'])} -> {id_list(new_slices)}")
+            d.update(status=args.status, undo_cost=args.undo_cost or d["undo_cost"],
+                     slices=d["slices"] if new_slices is None else new_slices, updated=utc_now())
+        if body and body.strip():
+            lines += ["", nested_prose(body).strip("\n")]
+        outcome["id"] = did
+        return Effects(entry=(f"{did} {args.status}", "\n".join(lines)))
+
+    write_plan(plan_dir, "decide" + (f" {args.id}" if args.id else ""), change, guard)
+    print(outcome["id"])
+
+
+def decision_rows(state, pending):
+    decisions = state["decisions"]
+    ids = sorted_decision_ids(decisions)
+    if pending:
+        ids = [did for did in ids if decisions[did]["status"] == "pending-review"]
+        ids.sort(key=lambda did: -UNDO_COSTS.index(decisions[did]["undo_cost"])
+                 if decisions[did]["undo_cost"] in UNDO_COSTS else 1)
+    return [{"id": did, "status": decisions[did]["status"], "undo_cost": decisions[did]["undo_cost"],
+             "slices": decisions[did]["slices"], "recorded": decisions[did]["recorded"],
+             "updated": decisions[did]["updated"], "unfinished": unfinished_slices(state, decisions[did]["slices"])}
+            for did in ids]
+
+
+def cmd_decisions(args):
+    rows = decision_rows(load_state(plan_dir_of(args)), args.pending)
+    if args.json:
+        print(json.dumps(rows, indent=2, ensure_ascii=False))
+        return
+    for row in rows:
+        print("\t".join([row["id"], row["status"], row["undo_cost"], f"slices: {id_list(row['slices'])}",
+                         f"unfinished: {id_list(row['unfinished'])}"]))
+
+
+def cmd_grant(args):
+    check_force_reason(args)
+    guard = Guard(args)
+
+    def change(state):
+        run, previous = state["run"], state["run"]["grant"]
+        guard.check(previous is None, f"autonomy is already granted ({previous['granted']})" if previous else "")
+        run["grant"] = {"granted": utc_now(), "note": args.note or None}
+        lines = [f"Granted: {run['grant']['granted']}"]
+        if args.note:
+            lines.append(f"Note: {args.note}")
+        if previous:
+            lines.append(f"Replaces grant from: {previous['granted']}")
+        return Effects(entry=("autonomy granted", "\n".join(lines)))
+
+    write_plan(plan_dir_of(args), "grant", change, guard)
+    print("Granted autonomy")
+
+
+def cmd_revoke(args):
+    check_force_reason(args)
+    guard = Guard(args)
+
+    def change(state):
+        previous = state["run"]["grant"]
+        guard.check(previous is not None, "autonomy is not granted")
+        state["run"]["grant"] = None
+        lines = [f"Revoked grant from: {previous['granted']}" if previous else "No grant was recorded."]
+        if args.note:
+            lines.append(f"Note: {args.note}")
+        return Effects(entry=("autonomy revoked", "\n".join(lines)))
+
+    write_plan(plan_dir_of(args), "revoke", change, guard)
+    print("Revoked autonomy")
 
 
 # ---------------------------------------------------------------- import
@@ -1423,8 +1669,9 @@ def build_state(plan_dir, lines, table, repo_arg, target_arg):
         "schema": SCHEMA_VERSION,
         "repo": repo,
         "planning_revision": revision and (resolve_revision(repo, revision) or revision),
-        "run": {"target": target, "target_tip": branch_tip(repo, target)},
+        "run": {"target": target, "target_tip": branch_tip(repo, target), "grant": None},
         "slices": slices,
+        "decisions": {},
     }
     problems = state_problems(state)
     if problems:
@@ -1555,7 +1802,8 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="plan",
         description="Own a slice plan's mechanical state: status, dependencies, "
-        "eligibility, and run state. Run it as `python3 <path>/plan`.",
+        "eligibility, run state, the autonomy grant, and the decision index. Run it as "
+        "`python3 <path>/plan`.",
         epilog=STATE_FIELDS + "\n" + FORCE_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[plan_option()],
@@ -1570,7 +1818,8 @@ def build_parser():
         description="Create state.json in DIR (refused when it already exists), an "
         "empty log.md when absent, and the generated status block in plan.md, "
         "creating plan.md when absent and keeping its prose otherwise.",
-        epilog="Writes state.json fields: schema, repo, run.target, run.target_tip, slices.",
+        epilog="Writes state.json fields: schema, repo, planning_revision, run.target, run.target_tip, "
+        "run.grant (null), slices, decisions ({}).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     init.add_argument("dir", help="plan directory (created when absent)")
@@ -1585,7 +1834,8 @@ def build_parser():
         "plan owned by `plan`: write state.json, replace plan.md's slice table with the "
         "generated status block, and move log.md's current checkpoint into checkpoints/<ID>.md.",
         epilog=IMPORT_HELP + "\nWrites state.json fields: schema, repo, planning_revision, run.target, "
-        "run.target_tip, slices (with fixed_point and snapshot for started slices).",
+        "run.target_tip, run.grant (null), slices (with fixed_point and snapshot for started slices), "
+        "decisions ({}).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     import_cmd.add_argument("dir", help="plan directory holding plan.md and log.md")
@@ -1649,9 +1899,11 @@ def build_parser():
         parents=[plan_option()],
         help="show slices, eligible work, in-progress and blocked slices, and run state",
         description="Print the slice table, eligible slices, in-progress slices with their "
-        "checkpoint path, blocked slices with their reason, and the run state.",
-        epilog="--json prints one object with keys: plan, repo, run, slices (each with id and "
-        "the state.json slice fields), eligible, in_progress ({id, checkpoint}), blocked ({id, reason}).",
+        "checkpoint path, blocked slices with their reason, and the run state, including the "
+        "autonomy grant.",
+        epilog="--json prints one object with keys: plan, repo, run (target, target_tip, grant), slices "
+        "(each with id and the state.json slice fields), eligible, in_progress ({id, checkpoint, "
+        "fixed_point}), blocked ({id, reason, fixed_point, checkpoint}).",
     )
     status.add_argument("--json", action="store_true", help="print the view as one JSON object")
     status.set_defaults(func=cmd_status)
@@ -1668,6 +1920,7 @@ def build_parser():
     next_cmd.set_defaults(func=cmd_next)
 
     add_lifecycle_commands(sub)
+    add_decision_commands(sub)
     return parser
 
 
@@ -1739,6 +1992,74 @@ def add_lifecycle_commands(sub):
     complete.add_argument("--evidence", required=True, metavar="TEXT|@FILE",
                           help="acceptance evidence, or @path to read it from a file")
     complete.set_defaults(func=cmd_complete)
+
+
+def add_decision_commands(sub):
+    decide = sub.add_parser(
+        "decide",
+        parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+        help="record a decision, or move one from pending-review to approved",
+        description="Without R<n>, record a new decision: allocate the next R<n> (after the highest in "
+        "the index; the plan's first decision continues after the highest R<n> that log.md lists "
+        "as a decision: a heading or list item starting with it, or a line starting `R<n>:` or "
+        "`R<n> (`), store its status, undo cost, and dependent "
+        "slices, append --body to log.md under an `R<n> <status>` entry, and print the ID. With "
+        "R<n>, update that decision: pending-review may move to approved, or stay pending-review "
+        "when the update amends it; approving an approved decision, returning it to pending-review, "
+        "or restating a status without amending anything is refused. An update may revise "
+        "--undo-cost and --slices and append --body.",
+        epilog="Writes state.json fields: decisions.<R>.status, undo_cost, slices, recorded, updated. "
+        "Unknown decision IDs and slice IDs are refused, also with --force; an empty --body for a "
+        "new decision is a guarded refusal.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    decide.add_argument("id", nargs="?", metavar="R<n>", help="decision to update; omit to record a new one")
+    decide.add_argument("--status", required=True, choices=DECISION_STATUSES, help="pending-review or approved")
+    decide.add_argument("--undo-cost", choices=UNDO_COSTS,
+                        help="cost of undoing the decision: low, medium, high, or irreversible "
+                        "(required for a new decision)")
+    decide.add_argument("--slices", action="append", metavar="IDS",
+                        help="dependent slice IDs, separated by commas or spaces; repeatable; `none` for no slice "
+                        "(required for a new decision)")
+    decide.add_argument("--body", metavar="TEXT|@FILE",
+                        help="the decision's prose for log.md, or @path to read it from a file "
+                        "(required for a new decision)")
+    decide.set_defaults(func=cmd_decide)
+
+    decisions = sub.add_parser(
+        "decisions",
+        parents=[plan_option()],
+        help="list decisions with their dependent and unfinished slices",
+        description="List every decision in ID order, one per line as ID<TAB>status<TAB>undo cost"
+        "<TAB>slices: …<TAB>unfinished: …, where unfinished names dependent slices not yet complete. "
+        "--pending lists only pending-review decisions, costliest to undo first (irreversible, high, "
+        "medium, low), then by ID.",
+        epilog="--json prints a list of objects with keys: id, status, undo_cost, slices, recorded, "
+        "updated, unfinished. Each decision's prose is in log.md under its `R<n>` entries.",
+    )
+    decisions.add_argument("--pending", action="store_true", help="only pending-review decisions, costliest first")
+    decisions.add_argument("--json", action="store_true", help="print the rows as one JSON list")
+    decisions.set_defaults(func=cmd_decisions)
+
+    for name, func, summary, text, note_help in (
+        ("grant", cmd_grant, "record the run's autonomy grant",
+         "Record the run's autonomy grant in run.grant with the current UTC time and an `autonomy granted` "
+         "log entry; refused while a grant is recorded. `plan status` shows it.",
+         "the grant's terms, stored in run.grant and log.md"),
+        ("revoke", cmd_revoke, "clear the run's autonomy grant",
+         "Clear run.grant with an `autonomy revoked` log entry; refused when no grant is recorded.",
+         "why the grant ends, for log.md"),
+    ):
+        p = sub.add_parser(
+            name,
+            parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+            help=summary,
+            description=text,
+            epilog="Writes state.json field: run.grant.\n\n" + FORCE_HELP,
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+        )
+        p.add_argument("--note", metavar="TEXT", help=note_help)
+        p.set_defaults(func=func)
 
 
 def plan_option():
