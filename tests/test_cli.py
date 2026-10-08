@@ -34,11 +34,13 @@ class CommandLineTest(PlanTestCase):
         result = self.run_executable("--help")
         self.assertEqual(result.returncode, 0)
         lines = [line.strip() for line in result.stdout.splitlines()]
-        for command in ("init", "import", "slice", "validate", "status", "next"):
+        for command in ("init", "import", "slice", "validate", "status", "next", "start", "block", "resume",
+                        "complete"):
             self.assertTrue(any(line.startswith(command + " ") for line in lines), command)
         for field in ("schema", "repo", "run.target", "run.target_tip", "slices.<ID>.file",
                       "slices.<ID>.outcome", "slices.<ID>.status", "slices.<ID>.reason", "slices.<ID>.blocked_by",
-                      "planning_revision", "slices.<ID>.fixed_point", "slices.<ID>.snapshot"):
+                      "planning_revision", "slices.<ID>.fixed_point", "slices.<ID>.snapshot", "slices.<ID>.landed",
+                      "checkpoints/<ID>.md"):
             self.assertTrue(any(line.startswith(field) for line in lines), field)
         self.assertIn("--force --reason", result.stdout)
         self.assertTrue(any(line.startswith("--plan DIR") for line in lines))
@@ -52,6 +54,10 @@ class CommandLineTest(PlanTestCase):
             ("validate",): ("--plan", "state.json"),
             ("status",): ("--json", "--plan", "checkpoint"),
             ("next",): ("--limit", "--plan"),
+            ("start",): ("--force", "--reason", "--plan", "fixed point", "checkpoints/<ID>.md"),
+            ("block",): ("--force", "--reason", "--plan", "blocked"),
+            ("resume",): ("--force", "--reason", "--plan", "in-progress"),
+            ("complete",): ("--rev", "--evidence", "--force", "--reason", "--plan", "@FILE", "log.md"),
         }
         for command, flags in expectations.items():
             result = self.run_executable(*command, "--help")

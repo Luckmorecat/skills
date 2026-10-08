@@ -44,7 +44,10 @@ state.json fields (written only by `plan`):
                        init, or plan.md's "Planning revision" at import (null
                        when unknown or unborn).
   run.target           Target branch the plan lands on.
-  run.target_tip       Target branch tip read from Git at init (null when unborn).
+  run.target_tip       Recorded target branch tip: read from Git at init (null
+                       when unborn); `plan complete` moves it to the live tip
+                       when that tip descends from it and every commit between
+                       them is one of the slice's landed revisions.
   slices.<ID>.file     Slice description file, relative to the plan directory.
   slices.<ID>.outcome  One-line observable outcome.
   slices.<ID>.status   One of: ready, in-progress, blocked, complete.
@@ -55,20 +58,27 @@ state.json fields (written only by `plan`):
                        Revision the slice started from (null when not recorded).
   slices.<ID>.snapshot `git status --porcelain` output when the slice started,
                        "" when clean (null when not recorded).
+  slices.<ID>.landed   Revisions `plan complete` recorded as landed: full shas,
+                       or the text given under --force (null until complete).
 
-planning_revision, fixed_point, and snapshot may be absent from a state.json
-written by an earlier `plan`; they read as null.
+planning_revision, fixed_point, snapshot, and landed may be absent from a
+state.json written by an earlier `plan`; they read as null.
 
 Other files in the plan directory:
   plan.md              Prose; `plan` regenerates only the marked status block.
-  log.md               History; `plan` appends imports, forced overrides, and
+  log.md               History; `plan` appends dated entries for imports,
+                       start, block, resume, and complete (with the evidence
+                       and the folded checkpoint), and forced overrides with
                        their reasons.
-  checkpoints/<ID>.md  Current checkpoint prose of an in-progress slice.
+  checkpoints/<ID>.md  Current checkpoint prose of a started slice, written by
+                       agents; `plan start` creates it, `plan complete` folds
+                       it into log.md and deletes it.
   .plan.lock           flock target held by every write.
 """
 
 FORCE_HELP = """\
-Guarded refusals (status changes outside ready/blocked) are overridden with
+Guarded refusals (`slice add|edit` status changes outside ready/blocked, and
+each refusal of start, block, resume, and complete) are overridden with
 --force --reason <text>; the override and reason are appended to log.md.
 Integrity errors (duplicate IDs, missing dependencies, cycles) are never
 overridden.
@@ -97,6 +107,28 @@ def atomic_write(path, text):
         with contextlib.suppress(OSError):
             os.remove(tmp)
         raise
+
+
+def restore(path, original):
+    """Puts back a file's original bytes, or removes it when it did not exist; returns an error or None."""
+    try:
+        if original is None:
+            if os.path.exists(path):
+                os.remove(path)
+        else:
+            with open(path, "wb") as handle:
+                handle.write(original)
+    except OSError as exc:
+        return exc
+    return None
+
+
+def restore_all(originals):
+    """Restores each path to its original bytes (None: removes it), reporting failures on stderr."""
+    for path, original in originals.items():
+        error = restore(path, original)
+        if error:
+            print(f"plan: error: could not restore {path}: {error}", file=sys.stderr)
 
 
 def read_text(path):
@@ -161,14 +193,14 @@ def locked(plan_dir, discard_on_error=False):
 # ---------------------------------------------------------------- git
 
 
-def run_git(repo, *args):
+def run_git(repo, *args, strip=True):
     try:
         result = subprocess.run(
             ["git", "-C", repo, *args], capture_output=True, text=True
         )
     except FileNotFoundError:
         raise PlanError("git is not installed")
-    return result.returncode, result.stdout.strip()
+    return result.returncode, result.stdout.strip() if strip else result.stdout
 
 
 def repo_root(path):
@@ -242,11 +274,12 @@ def fill_later_fields(state):
         if isinstance(s, dict):
             s.setdefault("fixed_point", None)
             s.setdefault("snapshot", None)
+            s.setdefault("landed", None)
 
 
 def new_slice(file, outcome, status, reason, blocked_by):
     return {"file": file, "outcome": outcome, "status": status, "reason": reason,
-            "blocked_by": blocked_by, "fixed_point": None, "snapshot": None}
+            "blocked_by": blocked_by, "fixed_point": None, "snapshot": None, "landed": None}
 
 
 def shape_problems(state):
@@ -279,6 +312,9 @@ def shape_problems(state):
             wrong(d, dict) or wrong(d.get("id"), str) or wrong(d.get("supplies"), str) for d in deps
         ):
             problems.append(f"slices.{sid}.blocked_by must be a list of {{id, supplies}} strings")
+        landed = s.get("landed")
+        if landed is not None and (wrong(landed, list) or any(wrong(r, str) for r in landed)):
+            problems.append(f"slices.{sid}.landed must be a list of strings or null")
     return problems
 
 
@@ -547,31 +583,80 @@ def with_log_entry(text, title, body):
     return f"{text}## {utc_now()} — {title}\n\n{body.rstrip()}\n"
 
 
-def append_log(plan_dir, title, body):
-    path = os.path.join(plan_dir, LOG_FILE)
-    text = read_text(path) if os.path.exists(path) else ""
-    atomic_write(path, with_log_entry(text, title, body))
+class Effects:
+    """What a write does besides replacing state.json and the status block.
+
+    entry is a (title, body) log entry; create_checkpoint is a (path, text)
+    checkpoint written when the file is absent; remove_checkpoint is a path
+    deleted once state.json is saved.
+    """
+
+    def __init__(self, entry=None, create_checkpoint=None, remove_checkpoint=None):
+        self.entry = entry
+        self.create_checkpoint = create_checkpoint
+        self.remove_checkpoint = remove_checkpoint
 
 
 def write_plan(plan_dir, label, change, guard):
     """Applies change(state) under the lock, then writes log, state, and status block.
 
-    A forced override reaches log.md before state.json changes, so no override
-    can land unrecorded.
+    change returns Effects or None. The log reaches disk before state.json, so
+    no override or transition can land unrecorded. When the write fails before
+    state.json is replaced, the log keeps only the forced-override record and
+    the files this write created are removed. A checkpoint to remove goes as
+    soon as state.json lands.
     """
     require_state(plan_dir)
     with locked(plan_dir):
         state = load_state(plan_dir)
         check_plan_file(plan_dir)
-        change(state)
+        effects = change(state) or Effects()
         problems = id_collisions(state["slices"]) + graph_problems(state["slices"])
         if problems:
             raise PlanError("refused: " + "; ".join(problems))
+        log_path = os.path.join(plan_dir, LOG_FILE)
+        original = read_text(log_path) if os.path.exists(log_path) else None
+        kept = original
         if guard.overridden:
             lines = [f"Reason: {guard.reason}"] + [f"Overrode: {o}" for o in guard.overridden]
-            append_log(plan_dir, f"forced `plan {label}`", "\n".join(lines))
-        save_state(plan_dir, state)
+            kept = with_log_entry(original or "", f"forced `plan {label}`", "\n".join(lines))
+        log_text = with_log_entry(kept or "", *effects.entry) if effects.entry else kept
+        created, logged = [], False
+        try:
+            if effects.create_checkpoint and not os.path.exists(effects.create_checkpoint[0]):
+                create_checkpoint(*effects.create_checkpoint, created)
+            if log_text != original:
+                atomic_write(log_path, log_text)
+                logged = True
+            save_state(plan_dir, state)
+        except BaseException:
+            if logged and log_text != kept:
+                restore_all({log_path: None if kept is None else kept.encode("utf-8")})
+            remove_created(created)
+            raise
+        if effects.remove_checkpoint and os.path.exists(effects.remove_checkpoint):
+            try:
+                os.remove(effects.remove_checkpoint)
+            except OSError as exc:
+                print(f"plan: note: could not delete {effects.remove_checkpoint}: {exc}", file=sys.stderr)
         write_plan_file(plan_dir, state)
+
+
+def create_checkpoint(path, text, created):
+    """Writes a new checkpoint file, appending each path it creates to created."""
+    directory = os.path.dirname(path)
+    if not os.path.isdir(directory):
+        os.mkdir(directory)
+        created.append(directory)
+    atomic_write(path, text)
+    created.append(path)
+
+
+def remove_created(created):
+    """Removes files and directories a failed write created, newest first."""
+    for path in reversed(created):
+        with contextlib.suppress(OSError):
+            (os.rmdir if os.path.isdir(path) else os.remove)(path)
 
 
 def plan_dir_of(args):
@@ -679,6 +764,10 @@ def cmd_slice_edit(args):
             s["outcome"] = args.outcome
         if deps is not None:
             s["blocked_by"] = deps
+        if status == "ready" and s["status"] != "ready":
+            s.update(fixed_point=None, snapshot=None)  # ready means not started
+        if status != "complete":
+            s["landed"] = None
         s["status"], s["reason"] = status, reason
 
     write_plan(plan_dir_of(args), f"slice edit {args.id}", change, guard)
@@ -706,11 +795,12 @@ def status_view(plan_dir, state):
         "slices": slice_rows(slices),
         "eligible": eligible_ids(slices),
         "in_progress": [
-            {"id": sid, "checkpoint": checkpoint_path(plan_dir, sid)}
+            {"id": sid, "checkpoint": checkpoint_path(plan_dir, sid), "fixed_point": slices[sid]["fixed_point"]}
             for sid in sorted_ids(slices) if slices[sid]["status"] == "in-progress"
         ],
         "blocked": [
-            {"id": sid, "reason": slices[sid]["reason"]}
+            {"id": sid, "reason": slices[sid]["reason"], "fixed_point": slices[sid]["fixed_point"],
+             "checkpoint": checkpoint_path(plan_dir, sid) if slices[sid]["fixed_point"] else None}
             for sid in sorted_ids(slices) if slices[sid]["status"] == "blocked"
         ],
     }
@@ -722,12 +812,18 @@ def render_status(view):
     lines = [f"Plan: {view['plan']}", f"Repository: {view['repo']}", f"Target: {run['target']} {tip}", ""]
     lines += render_table(view["slices"]) + [""]
     lines.append("Eligible: " + (", ".join(view["eligible"]) or "none"))
-    for title, rows, key in (("In progress", view["in_progress"], "checkpoint"), ("Blocked", view["blocked"], "reason")):
+    in_progress = [f"{row['checkpoint']}  (fixed point {row['fixed_point'] or 'not recorded'})"
+                   for row in view["in_progress"]]
+    blocked = [row["reason"] + (f"  (fixed point {row['fixed_point']}; checkpoint {row['checkpoint']})"
+                                if row["fixed_point"] else "")
+               for row in view["blocked"]]
+    for title, rows, texts in (("In progress", view["in_progress"], in_progress),
+                               ("Blocked", view["blocked"], blocked)):
         if not rows:
             lines.append(f"{title}: none")
             continue
         lines.append(f"{title}:")
-        lines += [f"  {row['id']}  {row[key]}" for row in rows]
+        lines += [f"  {row['id']}  {text}" for row, text in zip(rows, texts)]
     return "\n".join(lines)
 
 
@@ -756,6 +852,240 @@ def cmd_validate(args):
     if problems:
         raise PlanError(f"{len(problems)} problem(s) in {state_path(plan_dir)}:\n  " + "\n  ".join(problems))
     print("Plan is valid")
+
+
+# ---------------------------------------------------------------- lifecycle
+
+
+HEX_PREFIX = re.compile(r"^[0-9a-f]{7,64}$")
+CHECKPOINT_TEMPLATE = "Not started.\n"
+RESUMED_TEMPLATE = "Resumed with no checkpoint recorded; recover progress from Git and log.md.\n"
+LOG_ENTRY_LEVEL = 3  # headings folded into a `## ` log entry start at `###`.
+
+
+def fixed_point_of(repo):
+    """Returns `git rev-parse HEAD`, or the empty-tree hash in an unborn repository."""
+    code, head = run_git(repo, "rev-parse", "--verify", "--quiet", "HEAD")
+    if code == 0 and head:
+        return head
+    code, tree = run_git(repo, "hash-object", "-t", "tree", os.devnull)
+    if code != 0 or not tree:
+        raise PlanError(f"cannot read a fixed point in {repo}")
+    return tree
+
+
+def dirty_snapshot(repo):
+    """Returns `git status --porcelain` of the repository root, unstripped ("" when clean)."""
+    code, out = run_git(repo, "--no-optional-locks", "status", "--porcelain", strip=False)
+    if code != 0:
+        raise PlanError(f"cannot read `git status` in {repo}; is it a Git work tree?")
+    return out
+
+
+def is_ancestor(repo, ancestor, descendant):
+    """True when ancestor equals descendant or is reachable from it."""
+    return ancestor == descendant or run_git(repo, "merge-base", "--is-ancestor", ancestor, descendant)[0] == 0
+
+
+def commit_of(repo, rev):
+    """Returns the full sha of the commit rev names, or None; a rev starting with `-` names none."""
+    if rev.startswith("-"):
+        return None
+    code, full = run_git(repo, "rev-parse", "--verify", "--quiet", rev + "^{commit}")
+    return full if code == 0 and full else None
+
+
+def fenced(text):
+    """Wraps text in a code fence longer than any backtick run inside it."""
+    longest = max((len(run) for run in re.findall(r"`+", text)), default=0)
+    marker = "`" * max(3, longest + 1)
+    return f"{marker}text\n{text.rstrip(chr(10))}\n{marker}"
+
+
+def nested_prose(text, level=LOG_ENTRY_LEVEL):
+    """Shifts headings outside code fences so the shallowest sits at level, nesting text under a log entry."""
+    lines = text.splitlines(keepends=True)
+    headings = []
+    for index, line in unfenced(lines):
+        match = HEADING.match(line.rstrip("\r\n"))
+        if match:
+            headings.append((index, len(match.group(1))))
+    shift = max(0, level - min((depth for _, depth in headings), default=level))
+    for index, depth in headings:
+        lines[index] = "#" * min(6, depth + shift) + lines[index][depth:]
+    return "".join(lines)
+
+
+def get_slice(state, sid):
+    s = state["slices"].get(sid)
+    if s is None:
+        raise PlanError(f"slice {sid} does not exist")
+    return s
+
+
+def check_force_reason(args):
+    """Refuses --reason on a command where it can only explain --force."""
+    if args.reason and not args.force:
+        raise PlanError("--reason applies only with --force")
+
+
+def guard_in_place(state, sid, guard):
+    """Refuses a second slice in progress in the repository checkout, where every in-progress slice runs."""
+    for other in sorted_ids(state["slices"]):
+        if other != sid and state["slices"][other]["status"] == "in-progress":
+            guard.check(False, f"slice {other} is already in progress in the repository checkout")
+
+
+def cmd_start(args):
+    check_force_reason(args)
+    guard = Guard(args)
+    plan_dir = plan_dir_of(args)
+
+    def change(state):
+        s = get_slice(state, args.id)
+        guard.check(s["status"] == "ready", f"slice {args.id} is {s['status']}, not ready")
+        for dep in s["blocked_by"]:
+            status = state["slices"][dep["id"]]["status"] if dep["id"] in state["slices"] else "missing"
+            guard.check(status == "complete", f"slice {args.id} depends on {dep['id']}, which is {status}, not complete")
+        guard_in_place(state, args.id, guard)
+        repo = state["repo"]
+        snapshot = dirty_snapshot(repo)
+        previous = s["fixed_point"]
+        s.update(status="in-progress", reason=None, fixed_point=fixed_point_of(repo), snapshot=snapshot, landed=None)
+        path = checkpoint_path(plan_dir, args.id)
+        exists = os.path.exists(path)
+        body = [f"Fixed point: {s['fixed_point']}"]
+        if previous and previous != s["fixed_point"]:
+            body.append(f"Replaces fixed point: {previous}")
+        body.append("Dirty snapshot: clean" if snapshot == "" else "Dirty snapshot:\n\n" + fenced(snapshot))
+        body.append(f"Checkpoint: {CHECKPOINT_DIR}/{args.id}.md ({'kept' if exists else 'created'})")
+        return Effects(entry=(f"slice {args.id} started", "\n".join(body)),
+                       create_checkpoint=(path, CHECKPOINT_TEMPLATE))
+
+    write_plan(plan_dir, f"start {args.id}", change, guard)
+    print(f"Started slice {args.id}; checkpoint {checkpoint_path(plan_dir, args.id)}")
+
+
+def cmd_block(args):
+    if not args.reason:
+        raise PlanError("block requires --reason <text>")
+    guard = Guard(args)
+
+    def change(state):
+        s = get_slice(state, args.id)
+        was = s["status"]
+        guard.check(was in ("in-progress", "ready"),
+                    f"slice {args.id} is {was}; only an in-progress or ready slice is blocked")
+        s.update(status="blocked", reason=args.reason, landed=None)
+        return Effects(entry=(f"slice {args.id} blocked", f"Reason: {args.reason}\nWas: {was}"))
+
+    write_plan(plan_dir_of(args), f"block {args.id}", change, guard)
+    print(f"Blocked slice {args.id}")
+
+
+def cmd_resume(args):
+    check_force_reason(args)
+    guard = Guard(args)
+    plan_dir = plan_dir_of(args)
+    outcome = {}
+
+    def change(state):
+        s = get_slice(state, args.id)
+        guard.check(s["status"] == "blocked", f"slice {args.id} is {s['status']}, not blocked")
+        started = s["fixed_point"] is not None
+        if started:
+            guard_in_place(state, args.id, guard)
+        outcome["status"] = "in-progress" if started else "ready"
+        s.update(status=outcome["status"], reason=None, landed=None)
+        detail = f"fixed point {s['fixed_point']}" if started else "not started"
+        path = checkpoint_path(plan_dir, args.id)
+        body = [f"Status: {outcome['status']} ({detail})"]
+        if started and not os.path.exists(path):
+            body.append(f"Checkpoint: {CHECKPOINT_DIR}/{args.id}.md (created; none was recorded)")
+        return Effects(entry=(f"slice {args.id} resumed", "\n".join(body)),
+                       create_checkpoint=(path, RESUMED_TEMPLATE) if started else None)
+
+    write_plan(plan_dir, f"resume {args.id}", change, guard)
+    print(f"Resumed slice {args.id} as {outcome['status']}")
+
+
+def read_evidence(value):
+    """Returns evidence text, reading `@path` (relative to the current directory) from a file."""
+    if not value.startswith("@"):
+        return value
+    path = os.path.abspath(value[1:])
+    try:
+        return read_text(path)
+    except OSError as exc:
+        raise PlanError(f"cannot read evidence file {path}: {exc.strerror or exc}")
+
+
+def landed_revision(state, s, rev, guard):
+    """Resolves a landed revision, guarding that it is the fixed point or on the target branch."""
+    repo, target, fixed = state["repo"], state["run"]["target"], s["fixed_point"]
+    full = commit_of(repo, rev)
+    if fixed and (full == fixed or (full is None and HEX_PREFIX.match(rev) and fixed.startswith(rev))):
+        return fixed  # a no-code result, including the empty tree of an unborn repository
+    guard.check(full is not None, f"revision {rev} is not a commit in {repo}")
+    if full is None:
+        return rev
+    tip = commit_of(repo, f"refs/heads/{target}")
+    on_target = tip is not None and is_ancestor(repo, full, tip)
+    guard.check(on_target, f"revision {rev} is not the tip of {target} or its ancestor")
+    return full
+
+
+def advance_target_tip(state, landed):
+    """Moves the recorded target tip to the live tip when every commit between them was landed.
+
+    Each commit in `recorded..live` (all of live's history when no tip was
+    recorded) must be a landed revision, and live must descend from recorded,
+    so outside commits and a rewritten target keep the recorded tip. Returns
+    the log line.
+    """
+    repo, run = state["repo"], state["run"]
+    recorded, live = run["target_tip"], commit_of(repo, f"refs/heads/{run['target']}")
+    if live == recorded:
+        return f"Target tip: {recorded} (unchanged)"
+    between = None
+    if live and (recorded is None or is_ancestor(repo, recorded, live)):
+        code, out = run_git(repo, "rev-list", live if recorded is None else f"{recorded}..{live}")
+        between = out.split() if code == 0 else None
+    if between and set(between) <= set(landed):
+        run["target_tip"] = live
+        return f"Target tip: {recorded or 'unborn'} -> {live}"
+    return (f"Target tip: kept at {recorded or 'unborn'}; the live tip {live or '(unborn)'} holds commits "
+            "this slice did not land (pass every slice commit with --rev), or the target was rewritten")
+
+
+def cmd_complete(args):
+    check_force_reason(args)
+    guard = Guard(args)
+    plan_dir = plan_dir_of(args)
+    evidence = read_evidence(args.evidence)
+
+    def change(state):
+        s = get_slice(state, args.id)
+        guard.check(s["status"] == "in-progress", f"slice {args.id} is {s['status']}, not in-progress")
+        landed = []
+        for rev in args.rev:
+            full = landed_revision(state, s, rev, guard)
+            if full not in landed:
+                landed.append(full)
+        guard.check(evidence.strip() != "", "evidence is empty")
+        path = checkpoint_path(plan_dir, args.id)
+        body = [f"Landed: {', '.join(landed)}", f"Fixed point: {s['fixed_point'] or 'not recorded'}", "",
+                "Evidence:", "", nested_prose(evidence).strip("\n") or "(none)", ""]
+        if os.path.isfile(path):
+            body += [f"Checkpoint ({CHECKPOINT_DIR}/{args.id}.md):", "", nested_prose(read_text(path)).strip("\n")]
+        else:
+            body.append(f"No checkpoint file {CHECKPOINT_DIR}/{args.id}.md was found.")
+        s.update(status="complete", reason=None, landed=landed)
+        body += ["", advance_target_tip(state, landed)]
+        return Effects(entry=(f"slice {args.id} complete", "\n".join(body)), remove_checkpoint=path)
+
+    write_plan(plan_dir, f"complete {args.id}", change, guard)
+    print(f"Completed slice {args.id}")
 
 
 # ---------------------------------------------------------------- import
@@ -1175,20 +1505,6 @@ def prepare_import(plan_dir, repo_arg, target_arg):
     return Import(state, plan_text, log_text, checkpoint, notes)
 
 
-def restore(path, original):
-    """Puts back a file's original bytes, or removes it when it did not exist; returns an error or None."""
-    try:
-        if original is None:
-            if os.path.exists(path):
-                os.remove(path)
-        else:
-            with open(path, "wb") as handle:
-                handle.write(original)
-    except OSError as exc:
-        return exc
-    return None
-
-
 def apply_import(plan_dir, prepared):
     """Writes checkpoint, log, plan, then state.json; on failure restores each file."""
     writes = []
@@ -1214,10 +1530,7 @@ def apply_import(plan_dir, prepared):
         for path, text in writes:
             atomic_write(path, text)
     except BaseException:
-        for path, original in originals.items():
-            error = restore(path, original)
-            if error:
-                print(f"plan: error: could not restore {path}: {error}", file=sys.stderr)
+        restore_all(originals)
         if made_dir:
             with contextlib.suppress(OSError):
                 os.rmdir(checkpoint_dir)
@@ -1353,7 +1666,79 @@ def build_parser():
     )
     next_cmd.add_argument("--limit", type=int, metavar="N", help="list at most N slices")
     next_cmd.set_defaults(func=cmd_next)
+
+    add_lifecycle_commands(sub)
     return parser
+
+
+def add_lifecycle_commands(sub):
+    start = sub.add_parser(
+        "start",
+        parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+        help="start a ready slice in the repository checkout",
+        description="Mark a ready slice in-progress after its dependencies are complete, while no "
+        "other slice is in progress in the repository checkout. Records the fixed point (`git "
+        "rev-parse HEAD`, or the empty-tree hash in an unborn repository) and `git status "
+        "--porcelain` of the repository root, and creates checkpoints/<ID>.md as `Not started.` "
+        "when absent.",
+        epilog="Writes state.json fields: slices.<ID>.status, reason, fixed_point, snapshot, landed "
+        "(null); appends a `slice <ID> started` entry to log.md. A forced start of a started slice "
+        "records a new fixed point and logs the one it replaces.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    start.add_argument("id", metavar="ID", help="slice ID")
+    start.set_defaults(func=cmd_start)
+
+    block = sub.add_parser(
+        "block",
+        parents=[plan_option(), force_options("why the slice is blocked (required); with --force, also "
+                                              "why the guard is overridden")],
+        help="block an in-progress or ready slice",
+        description="Move an in-progress or ready slice to blocked with --reason, keeping its fixed "
+        "point, snapshot, and checkpoint.",
+        epilog="Writes state.json fields: slices.<ID>.status, reason, landed (null); appends a "
+        "`slice <ID> blocked` entry to log.md.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    block.add_argument("id", metavar="ID", help="slice ID")
+    block.set_defaults(func=cmd_block)
+
+    resume = sub.add_parser(
+        "resume",
+        parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+        help="resume a blocked slice",
+        description="Move a blocked slice back to in-progress when it had started (its fixed point "
+        "is recorded), otherwise to ready. Resuming to in-progress is refused while another slice "
+        "is in progress in the repository checkout, keeps the fixed point and snapshot, and creates "
+        "checkpoints/<ID>.md when absent.",
+        epilog="Writes state.json fields: slices.<ID>.status, reason, landed (null); appends a "
+        "`slice <ID> resumed` entry to log.md.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    resume.add_argument("id", metavar="ID", help="slice ID")
+    resume.set_defaults(func=cmd_resume)
+
+    complete = sub.add_parser(
+        "complete",
+        parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+        help="complete an in-progress slice with landed revisions and evidence",
+        description="Mark an in-progress slice complete. Each --rev must be the target branch's tip "
+        "or its ancestor, or equal the slice's fixed point for a no-code result; evidence must be "
+        "non-empty. Appends the landed revisions, the evidence, and checkpoints/<ID>.md to log.md "
+        "under a `slice <ID> complete` entry, with headings shifted to nest under it, then deletes "
+        "the checkpoint file.",
+        epilog="Writes state.json fields: slices.<ID>.status, reason, landed (full shas), and "
+        "run.target_tip, moved to the live tip only when that tip descends from it and every "
+        "commit between them is a --rev; otherwise the tip is kept and the log entry says so. "
+        "The evidence and the checkpoint are prose and go to log.md only.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    complete.add_argument("id", metavar="ID", help="slice ID")
+    complete.add_argument("--rev", required=True, action="append", metavar="SHA",
+                          help="landed revision; repeat it for every commit the slice landed")
+    complete.add_argument("--evidence", required=True, metavar="TEXT|@FILE",
+                          help="acceptance evidence, or @path to read it from a file")
+    complete.set_defaults(func=cmd_complete)
 
 
 def plan_option():
@@ -1367,14 +1752,13 @@ def plan_option():
     return parent
 
 
-def force_options():
+FORCE_REASON_HELP = "why --force overrides a guard (only with --force)"
+
+
+def force_options(reason_help="why the slice is blocked (with --status blocked) and/or why --force overrides a guard"):
     parent = argparse.ArgumentParser(add_help=False)
     parent.add_argument("--force", action="store_true", help="override a guarded refusal (needs --reason)")
-    parent.add_argument(
-        "--reason",
-        metavar="TEXT",
-        help="why the slice is blocked (with --status blocked) and/or why --force overrides a guard",
-    )
+    parent.add_argument("--reason", metavar="TEXT", help=reason_help)
     return parent
 
 

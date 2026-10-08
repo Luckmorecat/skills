@@ -35,7 +35,10 @@ class ValidateTest(PlanTestCase):
         self.plan("slice", "add", "02", "--file", "g", "--outcome", "o", "--blocked-by", "01")
         saved = self.state()
         self.assertIsNone(saved["planning_revision"])
-        self.assertEqual((saved["slices"]["01"]["fixed_point"], saved["slices"]["01"]["snapshot"]), (None, None))
+        self.assertEqual(
+            (saved["slices"]["01"]["fixed_point"], saved["slices"]["01"]["snapshot"], saved["slices"]["01"]["landed"]),
+            (None, None, None),
+        )
 
     def test_valid_graph_exits_zero(self):
         self.plan("slice", "add", "01", "--file", "a", "--outcome", "o")
@@ -58,7 +61,8 @@ class ValidateTest(PlanTestCase):
         self.assertIn("dependency cycle: 01 -> 02 -> 01", result.err)
         self.assertIn("dependency cycle: 03 -> 05 -> 04 -> 03", result.err)
         self.assertIn("dependency cycle: 06 -> 06", result.err)
-        self.assertNotIn("07", result.err)
+        self.assertNotIn("-> 07", result.err)  # the temp path in the message may contain "07"
+        self.assertNotIn("cycle: 07", result.err)
 
     def test_names_each_cycle_through_a_shared_slice(self):
         self.corrupt({"A": self.slice_("B"), "B": self.slice_("A", "C"), "C": self.slice_("B")})
@@ -164,7 +168,8 @@ class StatusAndNextTest(PlanTestCase):
         out = self.plan("status").out
         self.assertIn("| 02 | 02-b.md | Import | 01: state model | ready |", out)
         self.assertIn("Eligible: 02, 10", out)
-        self.assertIn("03  " + os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "03.md"), out)
+        self.assertIn("03  " + os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "03.md")
+                      + "  (fixed point not recorded)", out)
         self.assertIn("04  needs a decision", out)
         self.assertIn("Target: main at " + self.tip, out)
         self.assertIn("Repository: " + self.repo, out)
@@ -174,9 +179,11 @@ class StatusAndNextTest(PlanTestCase):
         self.assertEqual(view["eligible"], ["02", "10"])
         self.assertEqual(
             view["in_progress"],
-            [{"id": "03", "checkpoint": os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "03.md")}],
+            [{"id": "03", "checkpoint": os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "03.md"),
+              "fixed_point": None}],
         )
-        self.assertEqual(view["blocked"], [{"id": "04", "reason": "needs a decision"}])
+        self.assertEqual(view["blocked"], [{"id": "04", "reason": "needs a decision", "fixed_point": None,
+                                            "checkpoint": None}])
         self.assertEqual(view["run"], {"target": "main", "target_tip": self.tip})
         self.assertEqual(view["repo"], self.repo)
         self.assertEqual([s["id"] for s in view["slices"]], ["01", "02", "03", "04", "10"])

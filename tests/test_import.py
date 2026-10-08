@@ -510,6 +510,33 @@ class ImportRefusalTest(ImportCase):
         self.assertEqual(self.snapshot(), before)
 
 
+class ImportThenLifecycleTest(ImportCase):
+    """An imported plan carries on through start, block, resume, and complete."""
+
+    def test_imported_in_progress_slice_completes_with_its_checkpoint_folded(self):
+        self.write_plan()
+        self.import_plan()
+        landed = self.commit("work.txt")
+        self.plan("complete", "02", "--rev", landed, "--evidence", "suite green")
+        self.assertEqual(self.state()["slices"]["02"]["status"], "complete")
+        self.assertFalse(os.path.exists(os.path.join(self.plan_dir, "checkpoints", "02.md")))
+        entry = self.read("log.md").split("— slice 02 complete", 1)[1]
+        self.assertIn("Next action: finish the importer.", entry)
+        self.assertIn(f"Fixed point: {self.rev}", entry)
+        self.plan("start", "03")
+        self.assertEqual(self.state()["slices"]["03"]["fixed_point"], landed)
+
+    def test_imported_blocked_started_slice_resumes_in_progress(self):
+        table = TABLE.replace("| in-progress |", "| ready |")
+        body = "Slice 04 blocked after start.\n- Fixed point: {rev}\n- Snapshot: clean\n- Next action: ask."
+        self.write_plan(table=table, log=checkpoint_log(body.format(rev=self.rev)))
+        self.import_plan()
+        self.commit("later.txt")
+        self.plan("resume", "04")
+        slice_ = self.state()["slices"]["04"]
+        self.assertEqual((slice_["status"], slice_["fixed_point"], slice_["snapshot"]), ("in-progress", self.rev, ""))
+
+
 class ImportCommandLineTest(ImportCase):
     def test_import_help_documents_flags_and_formats(self):
         result = self.run_executable("import", "--help")

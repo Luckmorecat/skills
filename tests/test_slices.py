@@ -13,7 +13,7 @@ class SliceAddTest(PlanTestCase):
         self.assertEqual(
             self.state()["slices"]["01"],
             {"file": "01-x.md", "outcome": "It works", "status": "ready", "reason": None, "blocked_by": [],
-             "fixed_point": None, "snapshot": None},
+             "fixed_point": None, "snapshot": None, "landed": None},
         )
 
     def test_add_defaults_to_ready(self):
