@@ -6,7 +6,7 @@ import textwrap
 import time
 import unittest
 
-from support import PLAN_PATH, PlanTestCase
+from support import PLAN_PATH, PlanTestCase, plan_cli
 
 ADD_LOOP = textwrap.dedent("""
     import importlib.machinery, importlib.util, sys
@@ -129,6 +129,34 @@ class ConcurrencyTest(PlanTestCase):
         _, err = writer.communicate(timeout=30)
         self.assertEqual(writer.returncode, 0, err)
         self.assertIn("01", self.state()["slices"])
+
+    def test_writer_waiting_on_a_deleted_lock_file_retries_on_the_new_one(self):
+        lock_path = os.path.join(self.plan_dir, ".plan.lock")
+        with plan_cli.locked(self.plan_dir):
+            writer = subprocess.Popen([sys.executable, "-c", SIGNALLING_WRITER, self.plan_dir],
+                                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+            self.assertEqual(writer.stdout.readline().strip(), "waiting")
+            time.sleep(0.2)
+            os.remove(lock_path)
+        self.assertEqual(writer.stdout.readline().strip(), "waiting", "writer must retry on the new lock file")
+        _, err = writer.communicate(timeout=30)
+        self.assertEqual(writer.returncode, 0, err)
+        self.assertTrue(os.path.exists(lock_path))
+        self.assertIn("01", self.state()["slices"])
+
+    def test_discard_on_error_removes_only_a_lock_file_it_created(self):
+        lock_path = os.path.join(self.plan_dir, ".plan.lock")
+        os.remove(lock_path)
+        with self.assertRaises(RuntimeError):
+            with plan_cli.locked(self.plan_dir, discard_on_error=True):
+                raise RuntimeError("boom")
+        self.assertFalse(os.path.exists(lock_path))
+        with plan_cli.locked(self.plan_dir):
+            pass
+        with self.assertRaises(RuntimeError):
+            with plan_cli.locked(self.plan_dir, discard_on_error=True):
+                raise RuntimeError("boom")
+        self.assertTrue(os.path.exists(lock_path))
 
     def test_crashed_writer_leaves_no_stale_lock_and_no_partial_state(self):
         self.plan("slice", "add", "01", "--file", "f", "--outcome", "o")

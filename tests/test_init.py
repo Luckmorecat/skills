@@ -13,6 +13,7 @@ class InitTest(PlanTestCase):
         self.assertEqual(state["repo"], self.repo)
         self.assertEqual(state["run"]["target"], "main")
         self.assertEqual(state["run"]["target_tip"], tip)
+        self.assertEqual(state["planning_revision"], tip)
         self.assertEqual(state["slices"], {})
 
     def test_init_creates_empty_log_and_plan_with_status_block(self):

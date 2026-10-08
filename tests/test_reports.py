@@ -20,7 +20,22 @@ class ValidateTest(PlanTestCase):
     @staticmethod
     def slice_(*deps, status="ready"):
         return {"file": "f", "outcome": "o", "status": status, "reason": None,
-                "blocked_by": [{"id": d, "supplies": ""} for d in deps]}
+                "blocked_by": [{"id": d, "supplies": ""} for d in deps],
+                "fixed_point": None, "snapshot": None}
+
+    def test_state_written_before_later_fields_reads_them_as_null(self):
+        state = self.state()
+        del state["planning_revision"]
+        state["slices"] = {"01": {"file": "f", "outcome": "o", "status": "ready", "reason": None, "blocked_by": []}}
+        with open(os.path.join(self.plan_dir, "state.json"), "w") as handle:
+            json.dump(state, handle)
+        self.plan("validate")
+        view = json.loads(self.plan("status", "--json").out)
+        self.assertIsNone(view["slices"][0]["fixed_point"])
+        self.plan("slice", "add", "02", "--file", "g", "--outcome", "o", "--blocked-by", "01")
+        saved = self.state()
+        self.assertIsNone(saved["planning_revision"])
+        self.assertEqual((saved["slices"]["01"]["fixed_point"], saved["slices"]["01"]["snapshot"]), (None, None))
 
     def test_valid_graph_exits_zero(self):
         self.plan("slice", "add", "01", "--file", "a", "--outcome", "o")

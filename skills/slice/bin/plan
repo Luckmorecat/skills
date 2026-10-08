@@ -26,6 +26,8 @@ LOG_FILE = "log.md"
 CHECKPOINT_DIR = "checkpoints"
 
 STATUSES = ("ready", "in-progress", "blocked", "complete")
+TABLE_COLUMNS = ("ID", "File", "Outcome", "Blocked by", "Status")
+TABLE_HEADER_TEXT = "| " + " | ".join(TABLE_COLUMNS) + " |"
 EDITABLE_STATUSES = ("ready", "blocked")
 MAX_REPORTED_CYCLES = 50
 ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
@@ -38,6 +40,9 @@ STATE_FIELDS = """\
 state.json fields (written only by `plan`):
   schema               State format version (currently 1).
   repo                 Absolute path of the Git repository root.
+  planning_revision    Revision the plan was written against: the target tip at
+                       init, or plan.md's "Planning revision" at import (null
+                       when unknown or unborn).
   run.target           Target branch the plan lands on.
   run.target_tip       Target branch tip read from Git at init (null when unborn).
   slices.<ID>.file     Slice description file, relative to the plan directory.
@@ -46,10 +51,18 @@ state.json fields (written only by `plan`):
   slices.<ID>.reason   Why the slice is blocked (null unless blocked).
   slices.<ID>.blocked_by
                        Dependencies: list of {"id": <ID>, "supplies": <text>}.
+  slices.<ID>.fixed_point
+                       Revision the slice started from (null when not recorded).
+  slices.<ID>.snapshot `git status --porcelain` output when the slice started,
+                       "" when clean (null when not recorded).
+
+planning_revision, fixed_point, and snapshot may be absent from a state.json
+written by an earlier `plan`; they read as null.
 
 Other files in the plan directory:
   plan.md              Prose; `plan` regenerates only the marked status block.
-  log.md               History; `plan` appends forced overrides and their reasons.
+  log.md               History; `plan` appends imports, forced overrides, and
+                       their reasons.
   checkpoints/<ID>.md  Current checkpoint prose of an in-progress slice.
   .plan.lock           flock target held by every write.
 """
@@ -91,17 +104,56 @@ def read_text(path):
         return handle.read()
 
 
+def open_lock(path):
+    """Opens the lock file, creating it when absent; returns (fd, created)."""
+    while True:
+        try:
+            return os.open(path, os.O_RDWR | os.O_CREAT | os.O_EXCL, 0o644), True
+        except FileExistsError:
+            pass
+        try:
+            return os.open(path, os.O_RDWR), False
+        except FileNotFoundError:
+            continue
+
+
+def holds_current_file(fd, path):
+    try:
+        on_disk = os.stat(path)
+    except FileNotFoundError:
+        return False
+    held = os.fstat(fd)
+    return (held.st_dev, held.st_ino) == (on_disk.st_dev, on_disk.st_ino)
+
+
 @contextlib.contextmanager
-def locked(plan_dir):
+def locked(plan_dir, discard_on_error=False):
     """Holds an exclusive flock on the plan directory's lock file.
 
     The kernel releases the lock when the holder exits, so a crashed writer
-    never leaves a stale lock behind.
+    never leaves a stale lock behind. After flock the holder checks that its
+    file is still the one at the lock path and retries otherwise, so a holder
+    may delete the lock file safely. With discard_on_error, a lock file this
+    holder created is deleted when the body raises, leaving no trace.
     """
-    fd = os.open(os.path.join(plan_dir, LOCK_FILE), os.O_RDWR | os.O_CREAT, 0o644)
+    path = os.path.join(plan_dir, LOCK_FILE)
+    while True:
+        fd, created = open_lock(path)
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX)
+            if holds_current_file(fd, path):
+                break
+        except BaseException:
+            os.close(fd)
+            raise
+        os.close(fd)
     try:
-        fcntl.flock(fd, fcntl.LOCK_EX)
         yield
+    except BaseException:
+        if discard_on_error and created:
+            with contextlib.suppress(OSError):
+                os.remove(path)
+        raise
     finally:
         os.close(fd)
 
@@ -175,10 +227,26 @@ def load_state(plan_dir):
     version = state.get("schema") if isinstance(state, dict) else None
     if version != SCHEMA_VERSION:
         raise PlanError(f"{path} has schema {version!r}; this plan tool reads schema {SCHEMA_VERSION}")
+    fill_later_fields(state)
     shape = shape_problems(state)
     if shape:
         raise PlanError(f"{path} is malformed: " + "; ".join(shape))
     return state
+
+
+def fill_later_fields(state):
+    """Reads fields added after schema 1 was first written as null when absent."""
+    state.setdefault("planning_revision", None)
+    slices = state.get("slices")
+    for s in slices.values() if isinstance(slices, dict) else ():
+        if isinstance(s, dict):
+            s.setdefault("fixed_point", None)
+            s.setdefault("snapshot", None)
+
+
+def new_slice(file, outcome, status, reason, blocked_by):
+    return {"file": file, "outcome": outcome, "status": status, "reason": reason,
+            "blocked_by": blocked_by, "fixed_point": None, "snapshot": None}
 
 
 def shape_problems(state):
@@ -189,6 +257,8 @@ def shape_problems(state):
     problems = []
     if wrong(state.get("repo"), str):
         problems.append("repo must be a string")
+    if wrong(state.get("planning_revision", 0), (str, type(None))):
+        problems.append("planning_revision must be a string or null")
     run = state.get("run")
     if wrong(run, dict) or wrong(run.get("target"), str) or wrong(run.get("target_tip"), (str, type(None))):
         problems.append("run must hold target (string) and target_tip (string or null)")
@@ -199,8 +269,10 @@ def shape_problems(state):
         if wrong(s, dict):
             problems.append(f"slices.{sid} must be an object")
             continue
-        for field, kinds in (("file", str), ("outcome", str), ("status", str), ("reason", (str, type(None)))):
-            if wrong(s.get(field), kinds):
+        optional = (str, type(None))
+        for field, kinds in (("file", str), ("outcome", str), ("status", str), ("reason", optional),
+                             ("fixed_point", optional), ("snapshot", optional)):
+            if field not in s or wrong(s[field], kinds):
                 problems.append(f"slices.{sid}.{field} is missing or has the wrong type")
         deps = s.get("blocked_by")
         if wrong(deps, list) or any(
@@ -210,10 +282,14 @@ def shape_problems(state):
     return problems
 
 
-def save_state(plan_dir, state):
+def state_text(state):
     ordered = dict(state)
     ordered["slices"] = {sid: state["slices"][sid] for sid in sorted_ids(state["slices"])}
-    atomic_write(state_path(plan_dir), json.dumps(ordered, indent=2, ensure_ascii=False) + "\n")
+    return json.dumps(ordered, indent=2, ensure_ascii=False) + "\n"
+
+
+def save_state(plan_dir, state):
+    atomic_write(state_path(plan_dir), state_text(state))
 
 
 # ---------------------------------------------------------------- status block
@@ -224,9 +300,16 @@ def table_cell(text):
 
 
 def format_dependencies(deps):
+    """Renders `01: what; 02, 03: shared`, grouping neighbors that supply the same thing."""
     if not deps:
         return "None"
-    return "; ".join(f"{d['id']}: {d['supplies']}" if d["supplies"] else d["id"] for d in deps)
+    groups = []
+    for d in deps:
+        if groups and groups[-1][1] == d["supplies"]:
+            groups[-1][0].append(d["id"])
+        else:
+            groups.append(([d["id"]], d["supplies"]))
+    return "; ".join(", ".join(ids) + (f": {supplies}" if supplies else "") for ids, supplies in groups)
 
 
 def slice_rows(slices):
@@ -234,7 +317,7 @@ def slice_rows(slices):
 
 
 def render_table(rows):
-    lines = ["| ID | File | Outcome | Blocked by | Status |", "| --- | --- | --- | --- | --- |"]
+    lines = [TABLE_HEADER_TEXT, "| --- | --- | --- | --- | --- |"]
     for row in rows:
         cells = [row["id"], row["file"], row["outcome"], format_dependencies(row["blocked_by"]), row["status"]]
         lines.append("| " + " | ".join(table_cell(c) for c in cells) + " |")
@@ -455,14 +538,19 @@ def utc_now():
     return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
-def append_log(plan_dir, title, body):
-    path = os.path.join(plan_dir, LOG_FILE)
-    text = read_text(path) if os.path.exists(path) else ""
+def with_log_entry(text, title, body):
+    """Returns log text with a `## <UTC time> — <title>` entry appended."""
     if text and not text.endswith("\n"):
         text += "\n"
     if text and not text.endswith("\n\n"):
         text += "\n"
-    atomic_write(path, f"{text}## {utc_now()} — {title}\n\n{body.rstrip()}\n")
+    return f"{text}## {utc_now()} — {title}\n\n{body.rstrip()}\n"
+
+
+def append_log(plan_dir, title, body):
+    path = os.path.join(plan_dir, LOG_FILE)
+    text = read_text(path) if os.path.exists(path) else ""
+    atomic_write(path, with_log_entry(text, title, body))
 
 
 def write_plan(plan_dir, label, change, guard):
@@ -546,6 +634,7 @@ def cmd_init(args):
         state = {
             "schema": SCHEMA_VERSION,
             "repo": repo,
+            "planning_revision": tip,
             "run": {"target": args.target, "target_tip": tip},
             "slices": {},
         }
@@ -566,13 +655,7 @@ def cmd_slice_add(args):
         if args.id in state["slices"]:
             raise PlanError(f"slice {args.id} already exists")
         status, reason = settle_status(args.id, None, None, args.status or "ready", args.reason, guard)
-        state["slices"][args.id] = {
-            "file": args.file,
-            "outcome": args.outcome,
-            "status": status,
-            "reason": reason,
-            "blocked_by": deps,
-        }
+        state["slices"][args.id] = new_slice(args.file, args.outcome, status, reason, deps)
 
     write_plan(plan_dir_of(args), f"slice add {args.id}", change, guard)
     print(f"Added slice {args.id}")
@@ -675,6 +758,483 @@ def cmd_validate(args):
     print("Plan is valid")
 
 
+# ---------------------------------------------------------------- import
+
+
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")
+INDENTED_FENCE = re.compile(r"^\s*(`{3,}|~{3,})(.*)$")
+SEPARATOR_ROW = re.compile(r"^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)*\|?$")
+UNESCAPED_PIPE = re.compile(r"(?<!\\)\|")
+DEPENDENCY_GROUP = re.compile(r"^([^:]+?)\s*(?::\s*(.*))?$", re.S)
+ID_LIST_SEPARATOR = re.compile(r"\s*,\s*(?:and\s+)?|\s+and\s+")
+FACT_LINE = re.compile(r"^\s*(?:[-*+]\s+)?([^:|`]{1,40}):\s*(.*)$")
+HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+SHA = re.compile(r"(?<![0-9A-Za-z])[0-9a-f]{7,40}(?![0-9A-Za-z])")
+SNAPSHOT_WORD = re.compile(r"\bsnapshot\b", re.I)
+FIXED_POINT_WORDS = ("fixed point", "starting revision", "baseline revision", "base revision")
+CLEAN_WORDS = re.compile(r"\b(clean|none|empty)\b", re.I)
+NO_DEPENDENCIES = ("", "none", "-", "—")
+
+# plan.md labels, most specific first, for each repository fact import reads.
+FACT_LABELS = {
+    "repo": ("repository root", "repo root", "root", "repository", "repo"),
+    "target": ("target branch", "branch", "branch/worktree", "target"),
+    "planning_revision": ("planning revision",),
+}
+
+IMPORT_HELP = f"""\
+Reads plan.md's slice table, the one table outside code fences whose header is
+  {TABLE_HEADER_TEXT}
+with one row per slice. Status is one of {", ".join(STATUSES)}. Blocked by is
+None, or `;`-separated groups `ID: what it supplies`, where a group may name
+several IDs separated by `,` or `and` (`02, 03 and 04: shared`) and may omit
+the text. A blocked slice gets a reason pointing at its slice file.
+
+Repository facts come from plan.md lines such as `- Root: <path>`,
+`- Branch: <name>`, and `- Planning revision: <sha or unborn>` (a leading
+backticked value or the first word). --repo and --target supply or override
+the first two; the import refuses when neither source gives them. A planning
+revision that abbreviates a commit is stored as its full sha, any other as
+written.
+
+log.md's `## Current checkpoint` section is removed. Its text becomes
+checkpoints/<ID>.md when it names exactly one in-progress slice or, naming
+none, exactly one blocked slice and a fixed point; the slice must not have a
+checkpoints/<ID>.md yet. Otherwise the text is kept in log.md's import entry.
+Each in-progress or blocked slice's fixed point (a sha on a `Fixed point` or
+`Starting revision` line) and dirty snapshot (`clean`, backticked entries, or
+a fenced block after a `snapshot` line) are read from its checkpoint into
+state.json.
+
+Refuses, changing nothing, when state.json exists, plan.md has no slice table
+(the older spine.md layout is not supported), or the table has duplicate or
+colliding IDs, unknown statuses, missing dependencies, or cycles. A failed
+write restores every file and removes the lock file it created. Files are
+written in the order checkpoint, log.md, plan.md, state.json, so a process
+killed partway leaves no state.json; restore plan.md and log.md from a copy
+before importing again.
+"""
+
+
+def import_refusal(problems):
+    return PlanError("import refused, nothing changed:\n  " + "\n  ".join(problems))
+
+
+def fence_opener(line, pattern=FENCE):
+    """Returns the fence marker a line opens, or None."""
+    match = pattern.match(line.rstrip("\r\n"))
+    if not match or (match.group(1)[0] == "`" and "`" in match.group(2)):
+        return None
+    return match.group(1)
+
+
+def closes_fence(line, marker, pattern=FENCE):
+    match = pattern.match(line.rstrip("\r\n"))
+    return bool(match) and match.group(1)[0] == marker[0] and len(match.group(1)) >= len(marker) \
+        and not match.group(2).strip()
+
+
+def unfenced(lines):
+    """Yields (index, line) for lines outside fenced code blocks."""
+    marker = None
+    for index, line in enumerate(lines):
+        if marker is None:
+            marker = fence_opener(line)
+            if marker is None:
+                yield index, line
+        elif closes_fence(line, marker):
+            marker = None
+
+
+def table_cells(line):
+    text = line.strip()
+    if not text.startswith("|"):
+        return None
+    cells = UNESCAPED_PIPE.split(text[1:])
+    if text.endswith("|") and not text.endswith("\\|"):
+        cells = cells[:-1]
+    return [cell.strip().replace("\\|", "|") for cell in cells]
+
+
+def is_slice_header(cells):
+    return cells is not None and [" ".join(c.lower().split()) for c in cells] == [c.lower() for c in TABLE_COLUMNS]
+
+
+def find_slice_tables(lines):
+    """Returns [(first line, end line, [(line number, cells)])] for each slice table."""
+    tables, rows, start = [], None, None
+    visible = list(unfenced(lines))
+    for position, (index, line) in enumerate(visible):
+        if rows is not None:
+            cells = table_cells(line)
+            if cells is not None and index == visible[position - 1][0] + 1:
+                rows.append((index + 1, cells))
+                continue
+            tables.append((start, visible[position - 1][0] + 1, rows))
+            rows = None
+        if not is_slice_header(table_cells(line)):
+            continue
+        following = visible[position + 1] if position + 1 < len(visible) else None
+        if following and following[0] == index + 1 and SEPARATOR_ROW.match(following[1].strip()):
+            start, rows = index, []
+    if rows is not None:
+        tables.append((start, visible[-1][0] + 1, rows))
+    # The separator row is the first row collected; drop it.
+    return [(first, end, body[1:]) for first, end, body in tables]
+
+
+def file_cell(cell):
+    link = re.fullmatch(r"\[[^\]]*\]\(([^)\s]+)\)", cell)
+    if link:
+        return link.group(1)
+    return cell[1:-1] if len(cell) > 1 and cell[0] == cell[-1] == "`" else cell
+
+
+def parse_dependency_cell(sid, cell):
+    if cell.strip().lower() in NO_DEPENDENCIES:
+        return [], []
+    deps, problems = [], []
+    for group in cell.split(";"):
+        match = DEPENDENCY_GROUP.match(group.strip())
+        ids = ID_LIST_SEPARATOR.split(match.group(1)) if match else []
+        if not ids or not all(ID_PATTERN.match(i) for i in ids):
+            problems.append(
+                f"slice {sid}: cannot read dependency {group.strip()!r}; "
+                "write `ID: what it supplies`, groups separated by `;`"
+            )
+            continue
+        for dep_id in ids:
+            if any(d["id"] == dep_id for d in deps):
+                problems.append(f"slice {sid}: dependency {dep_id} is listed twice")
+            else:
+                deps.append({"id": dep_id, "supplies": (match.group(2) or "").strip()})
+    return deps, problems
+
+
+def parse_slice_rows(rows):
+    slices, problems = {}, []
+    for line_number, cells in rows:
+        if len(cells) != len(TABLE_COLUMNS):
+            problems.append(
+                f"plan.md line {line_number}: slice table row has {len(cells)} cells; expected {len(TABLE_COLUMNS)}"
+            )
+            continue
+        sid, file_name, outcome, deps_cell, status = cells
+        if sid in slices:
+            problems.append(f"slice {sid} is listed twice")
+            continue
+        deps, dep_problems = parse_dependency_cell(sid, deps_cell)
+        problems += dep_problems
+        file_name = file_cell(file_name)
+        reason = f"blocked before `plan import`; see {file_name} for what resolves it" if status == "blocked" else None
+        slices[sid] = new_slice(file_name, outcome, status, reason, deps)
+    return slices, problems
+
+
+def fact_value(raw):
+    raw = raw.strip().lstrip("*_").strip()
+    quoted = re.match(r"`([^`]+)`", raw)
+    if quoted:
+        return quoted.group(1).strip()
+    word = re.match(r"[^\s;,()]+", raw)
+    return word.group(0) if word else None
+
+
+def repository_facts(lines):
+    """Returns plan.md's repository root, target branch, and planning revision when stated."""
+    found = {}
+    for _, line in unfenced(lines):
+        match = FACT_LINE.match(line)
+        if not match:
+            continue
+        label = " ".join(match.group(1).strip("*_ ").lower().split())
+        value = fact_value(match.group(2))
+        if value and label not in found:
+            found[label] = value
+    return {
+        fact: next((found[label] for label in labels if label in found), None)
+        for fact, labels in FACT_LABELS.items()
+    }
+
+
+def checkpoint_section(lines):
+    """Returns (start, end) line indexes of log.md's current checkpoint section, or None."""
+    sections = []
+    headings = [(i, HEADING.match(line)) for i, line in unfenced(lines)]
+    headings = [(i, len(m.group(1)), m.group(2)) for i, m in headings if m]
+    for position, (index, level, title) in enumerate(headings):
+        if " ".join(title.lower().split()) != "current checkpoint":
+            continue
+        end = next((i for i, lvl, _ in headings[position + 1:] if lvl <= level), len(lines))
+        sections.append((index, end))
+    if len(sections) > 1:
+        raise import_refusal([f"log.md has {len(sections)} `Current checkpoint` sections; keep one"])
+    return sections[0] if sections else None
+
+
+def mentions(text, sid):
+    """True when text names sid as a word, not inside a date, time, version, or hash."""
+    pattern = rf"(?<![A-Za-z0-9._:-]){re.escape(sid)}(?![A-Za-z0-9_-]|[.:][A-Za-z0-9])"
+    return re.search(pattern, text) is not None
+
+
+def resolve_revision(repo, revision):
+    """Expands an abbreviated commit sha; names such as HEAD or a branch are not expanded."""
+    if not SHA.fullmatch(revision):
+        return None
+    code, full = run_git(repo, "rev-parse", "--verify", "--quiet", revision + "^{commit}")
+    return full if code == 0 and full else None
+
+
+def fixed_point_in(text, repo):
+    """Reads the first revision after a fixed-point label that Git resolves, or a full sha."""
+    for line in text.splitlines():
+        lowered = line.lower()
+        hits = [lowered.index(w) + len(w) for w in FIXED_POINT_WORDS if w in lowered]
+        for match in SHA.finditer(line, min(hits)) if hits else ():
+            full = resolve_revision(repo, match.group(0))
+            if full:
+                return full
+            if len(match.group(0)) == 40:
+                return match.group(0)
+    return None
+
+
+def fenced_text(lines, start):
+    """Returns the content of the fence opening at lines[start], dedented to its indent."""
+    marker = fence_opener(lines[start], INDENTED_FENCE)
+    indent = len(lines[start]) - len(lines[start].lstrip())
+    body = []
+    for entry in lines[start + 1:]:
+        if closes_fence(entry, marker, INDENTED_FENCE):
+            break
+        body.append(entry[indent:] if entry[:indent].strip() == "" else entry.lstrip())
+    return "".join(entry + "\n" for entry in body if entry.strip())
+
+
+def snapshot_in(text):
+    """Reads a dirty snapshot as porcelain text: "" when clean, None when not stated."""
+    lines = text.splitlines()
+    for index, line in enumerate(lines):
+        word = SNAPSHOT_WORD.search(line)
+        if not word:
+            continue
+        rest = line[word.end():]
+        quoted = [q for q in re.findall(r"`([^`]+)`", rest) if not CLEAN_WORDS.fullmatch(q.strip())]
+        if quoted:
+            return "".join(q + "\n" for q in quoted)
+        if CLEAN_WORDS.search(rest):
+            return ""
+        start = next((i for i in range(index + 1, len(lines)) if lines[i].strip()), None)
+        if start is not None and fence_opener(lines[start], INDENTED_FENCE):
+            return fenced_text(lines, start)
+    return None
+
+
+class Import:
+    """The files and state one import writes, computed before any write."""
+
+    def __init__(self, state, plan_text, log_text, checkpoint, notes):
+        self.state = state
+        self.plan_text = plan_text
+        self.log_text = log_text
+        self.checkpoint = checkpoint  # (slice ID, text) or None
+        self.notes = notes
+
+
+def read_slice_table(plan_dir):
+    """Returns plan.md's lines and its one slice table, refusing anything else."""
+    if os.path.exists(state_path(plan_dir)):
+        raise import_refusal([f"{state_path(plan_dir)} already exists; this directory already holds a plan"])
+    checkpoint_dir = os.path.join(plan_dir, CHECKPOINT_DIR)
+    if os.path.exists(checkpoint_dir) and not os.path.isdir(checkpoint_dir):
+        raise import_refusal([f"{checkpoint_dir} exists and is not a directory"])
+    plan_path = os.path.join(plan_dir, PLAN_FILE)
+    spine = os.path.exists(os.path.join(plan_dir, "spine.md"))
+    unsupported = " This directory uses the older spine.md layout, which is not supported." if spine else ""
+    if not os.path.isfile(plan_path):
+        raise import_refusal([f"no {PLAN_FILE} in {plan_dir}.{unsupported}"])
+    plan_text = read_text(plan_path)
+    if locate_block(plan_text, plan_path) is not None:
+        raise import_refusal([
+            f"{plan_path} already has a generated status block but no {STATE_FILE}; "
+            "after an interrupted import, restore plan.md and log.md from a copy"
+        ])
+    lines = plan_text.splitlines(keepends=True)
+    tables = find_slice_tables(lines)
+    if not tables:
+        raise import_refusal([f"{plan_path} has no slice table with the header {TABLE_HEADER_TEXT}.{unsupported}"])
+    if len(tables) > 1:
+        raise import_refusal([f"{plan_path} has {len(tables)} slice tables; keep one"])
+    return lines, tables[0]
+
+
+def build_state(plan_dir, lines, table, repo_arg, target_arg):
+    """Builds and checks state.json from the slice table and repository facts."""
+    first, end, rows = table
+    slices, problems = parse_slice_rows(rows)
+    facts = repository_facts(lines[:first] + lines[end:])
+    target = target_arg or facts["target"]
+    for value, flag, example in ((repo_arg or facts["repo"], "--repo", "- Root: <path>"),
+                                 (target, "--target", "- Branch: <name>")):
+        if not value:
+            problems.append(f"plan.md names no {flag[2:]} (e.g. `{example}`); pass {flag}")
+    if problems:
+        raise import_refusal(problems)
+    if repo_arg:
+        repo = repo_root(os.path.abspath(repo_arg))
+    else:
+        stated = os.path.expanduser(facts["repo"])
+        repo = repo_root(stated if os.path.isabs(stated) else os.path.join(plan_dir, stated))
+    revision = facts["planning_revision"]
+    if revision == "unborn":
+        revision = None
+    state = {
+        "schema": SCHEMA_VERSION,
+        "repo": repo,
+        "planning_revision": revision and (resolve_revision(repo, revision) or revision),
+        "run": {"target": target, "target_tip": branch_tip(repo, target)},
+        "slices": slices,
+    }
+    problems = state_problems(state)
+    if problems:
+        raise import_refusal(problems)
+    return state
+
+
+def take_checkpoint(plan_dir, state):
+    """Removes log.md's current checkpoint and reads started slices' fixed points.
+
+    Returns (log text without the section, its body or None, (ID, text) to
+    move or None, notes).
+    """
+    slices, repo = state["slices"], state["repo"]
+    log_path = os.path.join(plan_dir, LOG_FILE)
+    log_text = read_text(log_path) if os.path.exists(log_path) else ""
+    log_lines = log_text.splitlines(keepends=True)
+    section = checkpoint_section(log_lines)
+    body = None
+    if section:
+        body = "".join(log_lines[section[0] + 1:section[1]]).strip("\n")
+        log_text = "".join(log_lines[:section[0]] + log_lines[section[1]:])
+
+    named = {status: [sid for sid in sorted_ids(slices) if slices[sid]["status"] == status
+                      and body and mentions(body, sid)]
+             for status in ("in-progress", "blocked")}
+    owner, notes = None, []
+    if len(named["in-progress"]) == 1:
+        owner = named["in-progress"][0]
+    elif len(named["in-progress"]) > 1:
+        notes.append(f"the current checkpoint names {', '.join(named['in-progress'])}; "
+                     "it stays in log.md's import entry")
+    elif len(named["blocked"]) == 1 and fixed_point_in(body, repo):
+        owner = named["blocked"][0]
+    if owner and os.path.exists(checkpoint_path(plan_dir, owner)):
+        notes.append(f"{CHECKPOINT_DIR}/{owner}.md already exists; the current checkpoint stays in "
+                     "log.md's import entry")
+        owner = None
+    checkpoint = (owner, body + "\n") if owner else None
+
+    for sid in sorted_ids(slices):
+        if slices[sid]["status"] not in ("in-progress", "blocked"):
+            continue
+        if checkpoint and checkpoint[0] == sid:
+            text = checkpoint[1]
+        elif os.path.isfile(checkpoint_path(plan_dir, sid)):
+            text = read_text(checkpoint_path(plan_dir, sid))
+        else:
+            text = ""
+        slices[sid]["fixed_point"] = fixed_point_in(text, repo)
+        slices[sid]["snapshot"] = snapshot_in(text)
+        if slices[sid]["status"] == "in-progress" and slices[sid]["fixed_point"] is None:
+            notes.append(f"slice {sid} is in-progress without a recorded fixed point; recover it from Git")
+    return log_text, body, checkpoint, notes
+
+
+def prepare_import(plan_dir, repo_arg, target_arg):
+    """Reads and checks everything an import needs; raises PlanError before any write."""
+    lines, table = read_slice_table(plan_dir)
+    state = build_state(plan_dir, lines, table, repo_arg, target_arg)
+    log_text, body, checkpoint, notes = take_checkpoint(plan_dir, state)
+    run = state["run"]
+    entry = [
+        f"Imported {len(state['slices'])} slices from plan.md's slice table into {STATE_FILE}.",
+        f"Repository: {state['repo']}; target: {run['target']} at {run['target_tip'] or 'an unborn branch'}; "
+        f"planning revision: {state['planning_revision'] or 'unknown'}.",
+    ]
+    if checkpoint:
+        entry.append(f"Moved the current checkpoint from log.md to {CHECKPOINT_DIR}/{checkpoint[0]}.md.")
+    entry += [f"Note: {note}." for note in notes]
+    if body and not checkpoint:
+        entry += ["", "The current checkpoint at import:", "", body]
+    log_text = with_log_entry(log_text, "imported by `plan import`", "\n".join(entry))
+
+    first, end, _ = table
+    tail = "\n" if lines[end - 1].endswith("\n") else ""
+    plan_text = "".join(lines[:first]) + render_block(state) + tail + "".join(lines[end:])
+    return Import(state, plan_text, log_text, checkpoint, notes)
+
+
+def restore(path, original):
+    """Puts back a file's original bytes, or removes it when it did not exist; returns an error or None."""
+    try:
+        if original is None:
+            if os.path.exists(path):
+                os.remove(path)
+        else:
+            with open(path, "wb") as handle:
+                handle.write(original)
+    except OSError as exc:
+        return exc
+    return None
+
+
+def apply_import(plan_dir, prepared):
+    """Writes checkpoint, log, plan, then state.json; on failure restores each file."""
+    writes = []
+    if prepared.checkpoint:
+        writes.append((checkpoint_path(plan_dir, prepared.checkpoint[0]), prepared.checkpoint[1]))
+    writes += [
+        (os.path.join(plan_dir, LOG_FILE), prepared.log_text),
+        (os.path.join(plan_dir, PLAN_FILE), prepared.plan_text),
+        (state_path(plan_dir), state_text(prepared.state)),
+    ]
+    originals = {}
+    for path, _ in writes:
+        if os.path.exists(path):
+            with open(path, "rb") as handle:
+                originals[path] = handle.read()
+        else:
+            originals[path] = None
+    checkpoint_dir = os.path.join(plan_dir, CHECKPOINT_DIR)
+    made_dir = prepared.checkpoint is not None and not os.path.isdir(checkpoint_dir)
+    try:
+        if made_dir:
+            os.mkdir(checkpoint_dir)
+        for path, text in writes:
+            atomic_write(path, text)
+    except BaseException:
+        for path, original in originals.items():
+            error = restore(path, original)
+            if error:
+                print(f"plan: error: could not restore {path}: {error}", file=sys.stderr)
+        if made_dir:
+            with contextlib.suppress(OSError):
+                os.rmdir(checkpoint_dir)
+        raise
+
+
+def cmd_import(args):
+    plan_dir = os.path.abspath(args.dir)
+    prepare_import(plan_dir, args.repo, args.target)  # refuse before the lock file exists
+    with locked(plan_dir, discard_on_error=True):
+        prepared = prepare_import(plan_dir, args.repo, args.target)
+        apply_import(plan_dir, prepared)
+    for note in prepared.notes:
+        print(f"plan: note: {note}", file=sys.stderr)
+    print(f"Imported {len(prepared.state['slices'])} slices into {state_path(plan_dir)}")
+
+
 # ---------------------------------------------------------------- parser
 
 
@@ -704,6 +1264,21 @@ def build_parser():
     init.add_argument("--repo", required=True, help="Git repository the plan changes")
     init.add_argument("--target", required=True, help="branch the plan lands on")
     init.set_defaults(func=cmd_init)
+
+    import_cmd = sub.add_parser(
+        "import",
+        help="convert a current-format markdown plan into state.json",
+        description="Convert the plan in DIR, written in the markdown PLAN-FORMAT, into a "
+        "plan owned by `plan`: write state.json, replace plan.md's slice table with the "
+        "generated status block, and move log.md's current checkpoint into checkpoints/<ID>.md.",
+        epilog=IMPORT_HELP + "\nWrites state.json fields: schema, repo, planning_revision, run.target, "
+        "run.target_tip, slices (with fixed_point and snapshot for started slices).",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    import_cmd.add_argument("dir", help="plan directory holding plan.md and log.md")
+    import_cmd.add_argument("--repo", help="Git repository the plan changes (overrides plan.md's Root)")
+    import_cmd.add_argument("--target", help="branch the plan lands on (overrides plan.md's Branch)")
+    import_cmd.set_defaults(func=cmd_import)
 
     slice_cmd = sub.add_parser(
         "slice",
