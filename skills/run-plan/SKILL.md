@@ -1,22 +1,32 @@
 ---
 name: run-plan
-description: Run a slice plan sequentially through subagents, reconciling blockers and escalating decisions to the user.
+description: Run a slice plan sequentially through subagents, reconciling blockers and escalating decisions it cannot make.
 ---
 
-Orchestrate the supplied plan through completion. Use its established path or ask when absent. Keep your work to dispatching subagents, routing their reports, and communicating with the user. Delegate all inspection, implementation, verification, and file changes.
+Orchestrate the plan to completion, asking for its path if none is given. Your work is dispatching subagents, routing their reports, and talking to the user; subagents do every inspection, implementation, verification, and file change. The plan and `log.md` are the source of truth for the run's state, over anything this conversation remembers.
 
-Start with an inspection subagent: read the plan and checkpoints, check repository state, and identify interrupted work or the next eligible slice. Use the existing plan and log as the source of truth. Resume interrupted work before starting another slice.
+## Inspect
 
-Dispatch a fresh execution subagent for each slice. Give it the plan path, slice ID, relevant user decisions, any recovery report, and the absolute path of `next-slice/SKILL.md`, a sibling of this skill's directory. `next-slice` is manual-only, so instruct the worker to read that file directly instead of invoking it as a skill, resolve its relative links from its directory, and follow it, completing only that slice. Run one slice at a time; wait for its worker to finish before handing off the workspace.
+Dispatch an inspection subagent to read the plan and `log.md`, check repository state, and report the next eligible slice, or the interrupted slice with its state as the **recovery report**. Resume an interrupted slice before starting another.
 
-Tell workers to return required subagent assignments and context when nested delegation is unavailable, preserving independent review instead of substituting self-review. Dispatch those assignments directly, sequentially if capacity requires, and relay the results before resuming the worker.
+## Run each slice
 
-Require workers to return their outcome, evidence, checkpoint location, and next eligible slice or remaining blockers. Routine implementation failures and review fixes belong to the execution worker. Workers report unresolved blockers to you for routing instead of independently asking the user.
+Dispatch a fresh **worker** per slice with the plan path, slice ID, relevant user decisions, any recovery report, and the absolute path of `../next-slice/SKILL.md`, relative to this skill's directory. `next-slice` is manual-only, so instruct the worker to read that file directly instead of invoking it as a skill, resolve its relative links from its directory, and follow it for that slice alone. Tell it to return to you, instead of asking the user or handing back to `slice`, every unresolved blocker and every consequential choice `next-slice` would settle with the user.
 
-The user may grant autonomy for a run, for example by asking to run the plan autonomously. Record the grant in `log.md` so it survives interruption and resume; it lasts until the run finishes or the user revokes it.
+If a worker cannot delegate further, it returns each subagent assignment it needs, such as `code-review`'s reviewers, with its context, so review stays independent. Dispatch those, sequentially if capacity requires, and return the results to the worker.
 
-For an unexpected issue or unresolved blocker, dispatch a reconciler with the worker's report, the plan path, whether autonomy is granted, and the absolute path of [RECONCILER.md](RECONCILER.md), instructing it to read and follow that file. Tell the user about a decision that two or more unfinished slices build on as soon as it is made, without pausing. After repair, return the affected slice to an execution subagent following `next-slice` before accepting completion. Escalate a recurring unresolved blocker instead of repeating the same recovery.
+Each worker returns its outcome, evidence, landed revision, and the next eligible slice or remaining blockers. Run slices sequentially: hand the workspace to another subagent only after the current worker returns. Then dispatch a worker for the next eligible slice, until every slice is complete or none can proceed.
 
-Relay escalations to the user and pause affected work. Continue independent eligible slices only after a subagent confirms that the blocked work can be left safely, preserving its recovery state and unverified changes. Pass user answers to a subagent; approved plan revisions go through `slice` before dependent execution resumes.
+## Blockers
 
-When workers report all slices complete, delegate a final check of agreed outcomes and required integration evidence. Route gaps through reconciliation. Finish with the plan path, completed work, and unresolved blockers; if nothing can proceed while input is pending, report the paused state rather than completion. After an autonomous run, list the `pending-review` decisions from `log.md`, costliest to undo first, then decisions the reconciler escalated that still await input.
+The user may grant autonomy for the run. Have a subagent record the grant in `log.md` so it survives a restart; it lasts until the run finishes or the user revokes it.
+
+A **reconciler** investigates an issue against the plan, repairs within the plan when it can, decides plan changes under an autonomy grant, and otherwise returns an **escalation**: a concrete question, options, a recommendation, and the affected slices. Workers fix routine failures and review findings themselves; for an unexpected issue or unresolved blocker, dispatch a reconciler with the report, the plan path, whether autonomy is granted, and the absolute path of [RECONCILER.md](RECONCILER.md), instructing it to read and follow that file. When a reconciler decision lists two or more unfinished dependent slices, tell the user at once and keep running. After a repair, a worker reruns the affected slice before you accept it as complete. Escalate a recurring unresolved blocker instead of repeating the same repair.
+
+Relay escalations to the user and pause the slices each lists as affected. Before continuing other eligible slices, have a subagent preserve the blocked slice's recovery state and unverified changes and confirm it can be left safely. Pass the user's answer to a reconciler to apply. For an approved plan revision, dispatch a subagent to read and follow `../slice/SKILL.md` directly, as workers read `next-slice`, before dependent slices continue.
+
+## Finish
+
+When workers report all slices complete, dispatch a subagent to check the agreed outcomes and required integration evidence, and route its gaps to a reconciler. Finish once the check finds no gaps, reporting the plan path, completed work, and unresolved blockers. When nothing can proceed while input is pending, stop and report the paused state instead of completion.
+
+After an autonomous run, list the `pending-review` decisions from `log.md`, costliest to undo first, then the escalations that still await input.
