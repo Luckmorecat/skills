@@ -18,6 +18,6 @@ Prepare slices when their outcome, acceptance, prerequisites, and verification a
 
 Present a compact breakdown with each slice's outcome and blockers so the user can judge granularity and ordering. Resolve decisions requiring their judgment; existing authorization is sufficient for decomposition within the agreed scope.
 
-Use [PLAN-FORMAT.md](PLAN-FORMAT.md) to save the plan and slice files. On revision, preserve stable IDs, completed work, verification evidence, and interrupted work's baseline; update affected unfinished slices and record why.
+Use [PLAN-FORMAT.md](PLAN-FORMAT.md) to save the plan and slice files. On revision, preserve stable IDs, completed work, verification evidence, and interrupted work's baseline; update affected unfinished slices and record why. In a plan directory holding `state.json`, change slices, dependencies, and status only with `python3 <cli> --plan <dir> slice add|edit`, where `<dir>` is that plan directory and `<cli>` is this skill's `bin/plan` as an absolute path (see its `--help`); it regenerates `plan.md`'s status block.
 
 Return the plan path, breakdown, and any unresolved blockers.
