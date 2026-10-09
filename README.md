@@ -60,6 +60,8 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. The plan carries delegated discretion, precedence rules, and any prototype reference, so execution settles what they cover the same way with or without a contract. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
 
+The plan skills share `slice/bin/plan`, a standard-library Python 3 command that owns a plan's run state: `slice` records slices and dependencies with it, and `next-slice`, `run-plan`, and `run-plan-parallel` change status and run state only through it, calling it as `../slice/bin/plan` from their own directories. Install `slice` beside them. `python3 slice/bin/plan --help` lists its commands and the `state.json` fields.
+
 `weave` lands work whose intent the current session settled, orchestrating subagents while the main thread keeps the conversation's intent and decisions. It first writes workers a brief of the goal, acceptance, scope, and settled decisions, amending a supplied contract where the conversation changed it, then has workers follow its `WORKER.md` while it answers their questions or escalates them to you. When the brief names sources of truth that settle behaviour beyond its acceptance, such as a prototype, design, or spec with examples, a reconciler following its `RECONCILER.md` maps the behaviour in scope against them before work starts and checks the committed result against them. Workers report discrepancies with any source of truth, and a reconciler settles them in batches. It splits the work where parts can proceed independently or would overload one worker, running independent chunks that share no files or verification resources in parallel worktrees followed by an integration worker, and dependent ones in sequence. An isolated review follows, then a worker commits through `commit`; with autonomy granted, it decides choices the brief leaves open, except hard stops such as data loss, security, public contracts, or cost, and passes them to affected workers, review, and the commit message. A final check repeats repair, review, and commit until acceptance holds at the last commit.
 
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
@@ -75,10 +77,10 @@ Contracts and slice plans live outside the repository. `define` presents its rec
 ```
 ${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/
   contracts/<repo>/<slug>-<date>/contract.md
-  plans/<repo>/<slug>-<date>/{plan,NN-slug,log}.md
+  plans/<repo>/<slug>-<date>/{plan,NN-slug,log}.md, state.json, checkpoints/<ID>.md
 ```
 
-`plan.md` holds shared context and the dependency/status table. Each slice has its own outcome, acceptance, and verification; `log.md` holds recovery state and evidence. `run-plan-parallel` adds `checkpoints/<ID>.md` and `worktrees/<ID>/` beside them while slices are in flight; worktrees move under the storage root when the plan directory is inside the repository. Plans remain self-contained whether their source is conversation or a contract. Existing plans retain their layout and checkpoint history; `next-slice` can still execute prepared slices from the older spine/map format.
+`plan.md` holds shared context and a status block generated from `state.json`, which holds run state: each slice's status and dependencies, baselines, landed revisions, worktrees, scheduling constraints, the autonomy grant, and the decision index. Each slice file has its own outcome, acceptance, and verification. A started slice's checkpoint lives in `checkpoints/<ID>.md`, and `log.md` is the plan's history, including each completed slice's evidence. `run-plan-parallel` adds `worktrees/<ID>/` while slices are in flight; worktrees move under the storage root when the plan directory is inside the repository. Plans remain self-contained whether their source is conversation or a contract. A plan saved before `state.json` existed, with its slice table in `plan.md`, converts on first use through `plan import`.
 
 Export `STRIKER_ROOT` from your shell profile rather than per invocation. The planning session and the implementing session are different shells by design, and a root set in one and unset in the other sends the second somewhere else.
 
@@ -98,7 +100,7 @@ Install all sixteen globally for Codex:
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
 ```
 
-Install selected skills by repeating `--skill`:
+Install selected skills by repeating `--skill`. Include `slice` with `next-slice`, `run-plan`, or `run-plan-parallel`, which call its `bin/plan`:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex \

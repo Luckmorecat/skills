@@ -4,26 +4,24 @@ Honor a supplied destination. Otherwise create an unused directory under `${STRI
 
 ```text
 <plan>/
-  plan.md
-  01-<slug>.md
+  plan.md              shared context and the generated status block
+  01-<slug>.md         one file per slice
   02-<slug>.md
-  log.md
+  state.json           run state
+  log.md               history
+  checkpoints/<ID>.md  a started slice's checkpoint
+  worktrees/<ID>/      a slice's worktree from `plan start --worktree` (see `plan start --help`)
 ```
+
+Agents write the prose: `plan.md` outside its status block, the slice files, and the checkpoints. The `plan` CLI in this skill's `bin/` writes `state.json`, the status block, and `log.md`, and creates and removes worktrees. Run state (repository and target branch, slice status, dependencies, baselines, landed revisions, worktrees, scheduling constraints, the autonomy grant, and the decision index) changes only through `plan`; `plan --help` documents its commands and the `state.json` fields.
 
 ## plan.md
 
-Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions with their approval or delegation status, with source references when available, including the absolute path of a source contract. Record delegated discretion with its constraints and any precedence rules, so execution settles the choices they cover without asking. When a prototype reference settles the interface or logic, carry its pinned reference and kind, what it settles and leaves open, and its `D<n>` ledger with IDs and status. Record the repository root, remote when available, branch/worktree, and planning revision (or `unborn`). Separate verified facts from assumptions.
+Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions with their approval or delegation status, with source references when available, including the absolute path of a source contract. Record delegated discretion with its constraints and any precedence rules, so execution settles the choices they cover without asking. When a prototype reference settles the interface or logic, carry its pinned reference and kind, what it settles and leaves open, and its `D<n>` ledger with IDs and status. Record the remote when available and any branch or worktree convention; `plan init` records the repository root, target branch, and planning revision. Separate verified facts from assumptions.
 
-List every slice in a compact table:
+The generated status block lists every slice with its file, outcome, dependencies, and status between its `plan:status` markers. Leave the block and its markers to `plan`. IDs remain stable; dependencies determine execution order. Name the behavior or evidence each dependency supplies. `plan` refuses missing dependencies and cycles, and `plan validate` checks the whole plan; check that every agreed outcome is covered.
 
-| ID | File | Outcome | Blocked by | Status |
-| --- | --- | --- | --- | --- |
-| 01 | 01-<slug>.md | Observable result | None | ready |
-| 02 | 02-<slug>.md | Observable result | 01 | ready |
-
-This table owns dependencies and status. IDs remain stable; dependencies determine execution order. Name the behavior or evidence each dependency supplies. Check that every dependency exists, the graph has no cycles, and every agreed outcome is covered.
-
-Use `ready`, `in-progress`, `blocked`, or `complete`. A ready slice is fully described; it can start only after its dependencies complete. Mark a slice blocked when a missing decision or evidence prevents describing or executing it, and record what resolves that blocker. An unfinished dependency alone does not make a slice blocked.
+Statuses are `ready`, `in-progress`, `blocked`, and `complete`. A ready slice is fully described; it can start only after its dependencies complete. Mark a slice blocked when a missing decision or evidence prevents describing or executing it, with a reason naming what resolves that blocker. An unfinished dependency alone does not make a slice blocked.
 
 ## Slice files
 
@@ -45,8 +43,14 @@ Create one file per slice. A blocked slice records what is known and its unresol
 
 Include slice-specific constraints and exclusions where needed. A `## Notes` section holds findings earlier slices recorded for this one; keep it when revising. Carry forward acceptance identifiers when the input has them. Add code pointers or snippets only when they preserve a decision or materially help navigation; distinguish inspected code from proposed structure. Verification describes observable proof; include commands when known and recheck them during execution.
 
+## checkpoints/<ID>.md
+
+The checkpoint of a started slice, kept by the skill executing it. `plan start` creates it when missing; a reconciler or the record of a paused slice's next action may write it earlier. `plan complete` and `plan land` fold it into `log.md` with the slice's evidence and delete it.
+
 ## log.md
 
-Keep a current checkpoint with the active slice, original starting revision, pre-existing dirty snapshot, owned changes, verification/review evidence, landed revisions, and blocker or next action. Initialize it as not started. Append concise history at checkpoints; completed claims require evidence.
+History only, appended by `plan`: a dated entry for each lifecycle transition (start, block, resume, complete, land), import, decision, grant, constraint, target-tip change, forced override, and slice change given `--note`, holding the prose passed to it, such as a slice's evidence and folded checkpoint, a decision's body, or the note. `plan init` and a `plan slice add|edit` without `--note` log nothing.
 
-When revising a plan, retain completed work, IDs, and recovery state; carry amended decisions, discretion, precedence, and ledger entries into the shared context, and record the reason for changed unfinished work. Existing plans using `contract.md`, `spine.md`, and `map.md` can retain their layout. Update their equivalent fields in place rather than forcing a migration.
+## Plans in the previous format
+
+A plan directory without `state.json`, whose `plan.md` holds the slice table `| ID | File | Outcome | Blocked by | Status |`, is in the previous format. Run `plan import <dir>` before reading or changing its state; it converts the table into `state.json` and the status block, and moves `log.md`'s checkpoint section into `checkpoints/<ID>.md`. See `plan import --help` for what it reads and refuses.

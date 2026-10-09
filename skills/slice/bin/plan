@@ -99,12 +99,13 @@ an absent decisions reads as {}, and an absent run.constraints as [].
 Other files in the plan directory:
   plan.md              Prose; `plan` regenerates only the marked status block.
   log.md               History; `plan` appends dated entries for imports,
+                       slices added or revised with --note (with the note),
                        start, block, resume, complete and land (with the
                        evidence and the folded checkpoint), worktree removal,
                        constraints, target-tip changes, decisions (`R<n>`
                        entries with their prose), grants and revocations, and
                        forced overrides with their reasons.
-  checkpoints/<ID>.md  Current checkpoint prose of a started slice, written by
+  checkpoints/<ID>.md  Checkpoint prose of a started slice, written by
                        agents; `plan start` creates it, `plan complete` and
                        `plan land` fold it into log.md and delete it.
   worktrees/<ID>       A slice's worktree when the plan directory is outside the
@@ -879,16 +880,52 @@ def cmd_init(args):
     print(f"Initialized plan in {plan_dir}")
 
 
+def slice_note(args):
+    """Returns --note's text (reading `@path`), or None when it is not given; an empty note is refused."""
+    if args.note is None:
+        return None
+    note = read_text_argument(args.note, "note")
+    if not note.strip():
+        raise PlanError("--note is empty; say why the slice is added or revised")
+    return note
+
+
+SLICE_ENTRY_FIELDS = (("file", "File"), ("outcome", "Outcome"), ("blocked_by", "Blocked by"), ("status", "Status"))
+
+
+def slice_field_text(s, field):
+    if field == "blocked_by":
+        return format_dependencies(s["blocked_by"])
+    if field == "status" and s["status"] == "blocked":
+        return f"blocked ({s['reason']})"
+    return s[field]
+
+
+def slice_entry(sid, before, after, note):
+    """Returns the `slice <ID> added|revised` log entry: each recorded or changed field, then the note."""
+    lines = []
+    for field, label in SLICE_ENTRY_FIELDS:
+        now = slice_field_text(after, field)
+        if before is None:
+            lines.append(f"{label}: {now}")
+        elif slice_field_text(before, field) != now:
+            lines.append(f"{label}: {slice_field_text(before, field)} -> {now}")
+    title = f"slice {sid} " + ("added" if before is None else "revised")
+    return title, "\n".join((lines or ["State unchanged."]) + ["", nested_prose(note).strip("\n")])
+
+
 def cmd_slice_add(args):
     check_id(args.id)
     guard = Guard(args)
     deps = parse_dependencies(args.blocked_by or [])
+    note = slice_note(args)
 
     def change(state):
         if args.id in state["slices"]:
             raise PlanError(f"slice {args.id} already exists")
         status, reason = settle_status(args.id, None, None, args.status or "ready", args.reason, guard)
-        state["slices"][args.id] = new_slice(args.file, args.outcome, status, reason, deps)
+        s = state["slices"][args.id] = new_slice(args.file, args.outcome, status, reason, deps)
+        return Effects(entry=slice_entry(args.id, None, s, note)) if note is not None else None
 
     write_plan(plan_dir_of(args), f"slice add {args.id}", change, guard)
     print(f"Added slice {args.id}")
@@ -897,14 +934,16 @@ def cmd_slice_add(args):
 def cmd_slice_edit(args):
     guard = Guard(args)
     deps = None if args.blocked_by is None else parse_dependencies(args.blocked_by)
+    note = slice_note(args)
     reason_change = None if args.force else args.reason
-    if all(v is None for v in (args.file, args.outcome, deps, args.status, reason_change)):
-        raise PlanError("nothing to change; pass --file, --outcome, --blocked-by, --status, or --reason")
+    if all(v is None for v in (args.file, args.outcome, deps, args.status, reason_change, note)):
+        raise PlanError("nothing to change; pass --file, --outcome, --blocked-by, --status, --reason, or --note")
 
     def change(state):
         s = state["slices"].get(args.id)
         if s is None:
             raise PlanError(f"slice {args.id} does not exist")
+        before = dict(s)
         status, reason = settle_status(args.id, s["status"], s["reason"], args.status, args.reason, guard)
         if args.file is not None:
             s["file"] = args.file
@@ -917,6 +956,7 @@ def cmd_slice_edit(args):
         if status != "complete":
             s["landed"] = None
         s["status"], s["reason"] = status, reason
+        return Effects(entry=slice_entry(args.id, before, s, note)) if note is not None else None
 
     write_plan(plan_dir_of(args), f"slice edit {args.id}", change, guard)
     print(f"Updated slice {args.id}")
@@ -2386,11 +2426,15 @@ def build_parser():
             description=(
                 "Record a new slice; duplicate IDs are refused."
                 if adding
-                else "Change an existing slice's file, outcome, dependencies, or status."
+                else "Change an existing slice's file, outcome, dependencies, or status, or log why its "
+                "description changed."
             )
             + " Refuses a change that leaves a missing dependency or a cycle.",
             epilog="Writes state.json fields: slices.<ID>.file, outcome, status, reason, "
-            "blocked_by; regenerates the plan.md status block.\n\n" + FORCE_HELP,
+            "blocked_by; regenerates the plan.md status block. With --note, appends a "
+            f"`slice <ID> {'added' if adding else 'revised'}` entry to log.md listing "
+            + ("the recorded fields" if adding else "each changed field as `old -> new` (or `State unchanged.` when none changed)")
+            + " and the note.\n\n" + FORCE_HELP,
             formatter_class=argparse.RawDescriptionHelpFormatter,
         )
         p.add_argument("id", metavar="ID", help="stable slice ID, e.g. 01")
@@ -2408,6 +2452,12 @@ def build_parser():
             "--status",
             choices=STATUSES,
             help="ready (default for add) or blocked; in-progress and complete need --force",
+        )
+        p.add_argument(
+            "--note",
+            metavar="TEXT|@FILE",
+            help="why the slice is " + ("added" if adding else "revised, including a revision of its prose alone")
+            + ", for log.md; @path reads it from a file",
         )
         p.set_defaults(func=func)
 

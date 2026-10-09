@@ -51,8 +51,10 @@ class CommandLineTest(PlanTestCase):
         expectations = {
             ("init",): ("--repo", "--target", "state.json"),
             ("import",): ("--repo", "--target", "state.json"),
-            ("slice", "add"): ("--file", "--outcome", "--blocked-by", "--status", "--force", "--reason", "--plan"),
-            ("slice", "edit"): ("--file", "--outcome", "--blocked-by", "--status", "--force", "--reason", "--plan"),
+            ("slice", "add"): ("--file", "--outcome", "--blocked-by", "--status", "--note", "--force", "--reason",
+                                "--plan", "@FILE", "log.md"),
+            ("slice", "edit"): ("--file", "--outcome", "--blocked-by", "--status", "--note", "--force", "--reason",
+                                "--plan", "@FILE", "log.md"),
             ("validate",): ("--plan", "state.json"),
             ("status",): ("--json", "--plan", "checkpoint"),
             ("next",): ("--limit", "--plan"),

@@ -1,3 +1,4 @@
+import os
 import unittest
 
 from support import PlanTestCase
@@ -177,7 +178,6 @@ class SliceEditTest(PlanTestCase):
         self.assertEqual(self.read("log.md"), "")
 
     def test_forced_override_is_logged_even_when_state_write_fails(self):
-        import os
         before = self.read("state.json")
         os.mkdir(os.path.join(self.plan_dir, "state.json.tmp"))
         self.plan_fails("slice", "edit", "01", "--status", "complete", "--force", "--reason", "logged first")
@@ -188,6 +188,102 @@ class SliceEditTest(PlanTestCase):
         result = self.plan_fails("slice", "add", "1", "--file", "a", "--outcome", "o")
         self.assertIn("slice IDs 01 and 1 collide", result.err)
         self.assertNotIn("1", self.state()["slices"])
+
+
+class SliceNoteTest(PlanTestCase):
+    """--note records why a slice is added or revised as a log.md entry."""
+
+    def setUp(self):
+        super().setUp()
+        self.init()
+        self.plan("slice", "add", "01", "--file", "01-a.md", "--outcome", "first")
+        self.plan("slice", "add", "02", "--file", "02-b.md", "--outcome", "second", "--blocked-by", "01:core")
+
+    def entries(self):
+        return [block for block in self.read("log.md").split("\n## ") if block.strip()]
+
+    def test_add_with_note_logs_the_new_slice(self):
+        self.plan("slice", "add", "03", "--file", "03-c.md", "--outcome", "third", "--blocked-by", "02:api",
+                  "--note", "Final check found the export gap.")
+        log = self.read("log.md")
+        self.assertRegex(log, r"^## \d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ — slice 03 added\n")
+        for line in ("File: 03-c.md", "Outcome: third", "Blocked by: 02: api", "Status: ready",
+                     "Final check found the export gap."):
+            self.assertIn(line, log)
+
+    def test_edit_with_note_logs_each_changed_field_and_the_note(self):
+        self.plan("slice", "add", "03", "--file", "03-c.md", "--outcome", "third")
+        self.plan("slice", "edit", "02", "--outcome", "second, narrower", "--blocked-by", "01:core", "03:data",
+                  "--status", "blocked", "--reason", "awaits R4", "--note", "R4 moved the export to 03.")
+        log = self.read("log.md")
+        self.assertIn(" — slice 02 revised\n", log)
+        self.assertIn("Outcome: second -> second, narrower", log)
+        self.assertIn("Blocked by: 01: core -> 01: core; 03: data", log)
+        self.assertIn("Status: ready -> blocked (awaits R4)", log)
+        self.assertNotIn("File:", log)
+        self.assertIn("R4 moved the export to 03.", log)
+
+    def test_note_alone_records_a_prose_revision(self):
+        before = self.state()
+        self.plan("slice", "edit", "02", "--note", "Acceptance item 2 now names the error text.")
+        self.assertEqual(self.state(), before)
+        log = self.read("log.md")
+        self.assertIn(" — slice 02 revised\n", log)
+        self.assertIn("State unchanged.", log)
+        self.assertIn("Acceptance item 2 now names the error text.", log)
+
+    def test_note_is_read_from_a_file(self):
+        path = os.path.join(self.tmp, "why.md")
+        with open(path, "w") as handle:
+            handle.write("# Why\n\nThe user narrowed 02.\n")
+        self.plan("slice", "edit", "02", "--outcome", "narrow", "--note", "@" + path)
+        log = self.read("log.md")
+        self.assertIn("### Why", log)
+        self.assertIn("The user narrowed 02.", log)
+
+    def test_unreadable_note_file_changes_nothing(self):
+        before = self.state()
+        result = self.plan_fails("slice", "edit", "02", "--outcome", "x", "--note", "@" + os.path.join(self.tmp, "no"))
+        self.assertIn("cannot read note file", result.err)
+        self.assertEqual(self.state(), before)
+        self.assertEqual(self.read("log.md"), "")
+
+    def test_empty_note_is_refused(self):
+        for argv in (("slice", "edit", "02", "--outcome", "x", "--note", " "),
+                     ("slice", "add", "03", "--file", "c", "--outcome", "o", "--note", "")):
+            result = self.plan_fails(*argv)
+            self.assertIn("--note is empty", result.err)
+        self.assertEqual(self.state()["slices"]["02"]["outcome"], "second")
+        self.assertNotIn("03", self.state()["slices"])
+        self.assertEqual(self.read("log.md"), "")
+
+    def test_refused_change_logs_no_note(self):
+        result = self.plan_fails("slice", "edit", "01", "--blocked-by", "02", "--note", "make a cycle")
+        self.assertIn("cycle", result.err)
+        result = self.plan_fails("slice", "edit", "02", "--status", "complete", "--note", "unforced")
+        self.assertIn("--force", result.err)
+        self.assertEqual(self.read("log.md"), "")
+
+    def test_forced_edit_logs_the_override_before_the_revision(self):
+        self.plan("slice", "edit", "01", "--status", "complete", "--force", "--reason", "landed before the CLI",
+                  "--note", "Recorded as complete.")
+        entries = self.entries()
+        self.assertEqual(len(entries), 2)
+        self.assertIn("forced `plan slice edit 01`", entries[0])
+        self.assertIn("slice 01 revised", entries[1])
+        self.assertIn("Status: ready -> complete", entries[1])
+
+    def test_failed_state_write_removes_the_revision_entry(self):
+        before = self.state()
+        os.mkdir(os.path.join(self.plan_dir, "state.json.tmp"))
+        self.plan_fails("slice", "edit", "02", "--outcome", "x", "--note", "lost")
+        self.assertEqual(self.read("log.md"), "")
+        self.assertEqual(self.state(), before)
+
+    def test_without_note_the_log_stays_untouched(self):
+        self.plan("slice", "add", "03", "--file", "c", "--outcome", "o")
+        self.plan("slice", "edit", "03", "--outcome", "p")
+        self.assertEqual(self.read("log.md"), "")
 
 
 if __name__ == "__main__":
