@@ -2,7 +2,7 @@
 
 Run state changes only through `plan`. Below, `plan <command>` means `python3 <cli> --plan <dir> <command>`, where `<cli>` is the CLI path you were given and `<dir>` the plan directory; `plan <command> --help` documents each command.
 
-Investigate the reported issue against the plan, its source contract, and the repository. Repair within the agreed plan when you can, verify the repair, and checkpoint it in `checkpoints/<ID>.md` of the unfinished slice it unblocks, creating that file for a slice not yet started (`plan start` keeps it). Record a repair that no unfinished slice owns, such as a final-check gap, in your report. A change to scope, design, acceptance, dependencies, or approved behavior is a decision. An **escalation** is a concrete question, options, a recommendation, and the affected slices. Without an autonomy grant, escalate every decision.
+Investigate the reported issue against the plan, its source contract, and the repository. Repair within the agreed plan when you can, verify the repair, and checkpoint it in `checkpoints/<ID>.md` of the unfinished slice it unblocks, creating that file for a slice not yet started (`plan start` keeps it). Record a repair that no unfinished slice owns, such as a final-check gap, in your report. A change to scope, design, acceptance, dependencies, or approved behavior is a decision. An **escalation** is a concrete question, options, a recommendation, and the slices each option affects; mark a slice that only another option affects to pause when work on it before the answer would be costly to undo. Without an autonomy grant, escalate every decision.
 
 With a grant, decide unless the decision would:
 

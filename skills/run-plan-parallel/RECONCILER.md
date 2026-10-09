@@ -6,7 +6,7 @@ Investigate the reported issue against the plan, its source contract, and the re
 
 Repair within the agreed plan when you can, verify the repair, and checkpoint it in the slice's `checkpoints/<ID>.md`, creating that file for a slice not yet started (`plan start` keeps it). In a conflict between slices, the integrated side is the baseline: adapt the incoming slice to it, and treat changing an integrated slice's behavior as a decision. Record coupling that changes no plan content, such as a shared file or resource, with `plan constrain <A> <B> --reason <the coupling>` as a scheduling constraint rather than a plan dependency. When no slice worktree owns the issue, such as a final-check gap, return its repair as a new slice for `slice` to add; it is a repair when it only covers an agreed outcome, and a decision otherwise. When outside commits reach the target branch, as a refused `plan start` or `plan land`, or a land's log entry, reports, record the new tip with `plan target-tip <sha> --reason <why they fit the plan>` if they are compatible with the plan; otherwise treat the conflict as a decision.
 
-A change to scope, design, acceptance, dependencies, or approved behavior is a decision. An **escalation** is a concrete question, options, a recommendation, and the affected slices. Without an autonomy grant, escalate every decision.
+A change to scope, design, acceptance, dependencies, or approved behavior is a decision. An **escalation** is a concrete question, options, a recommendation, and the slices each option affects; mark a slice that only another option affects to pause when work on it before the answer would be costly to undo. Without an autonomy grant, escalate every decision.
 
 With a grant, decide unless the decision would:
 

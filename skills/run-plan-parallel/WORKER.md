@@ -7,6 +7,6 @@ Implement, verify, and commit one slice in its worktree. Read the supplied `next
 - Commit to the slice branch and stop instead of running `plan complete`; the integrator lands the slice. Where `next-slice` would run `plan block`, checkpoint the blocker and return it.
 - Before the baseline check, bootstrap the worktree without changing tracked files (for example, a frozen-lockfile install); report if you cannot. The snapshot predates the bootstrap, so list in the checkpoint any files it leaves that `git status` shows, as pre-existing. Use only the resources in your notes.
 - Where `next-slice` or `RECOVERY.md` would settle a choice with the user or hand back to `slice`, checkpoint and return the question or blocker instead.
-- When you dispatch your own reviewers, wait for every reviewer's report before returning. If you cannot delegate further, return each subagent assignment you need with its context as a request, as `next-slice` describes, so review stays independent; continue with the reports the orchestrator returns to you.
+- When you dispatch your own reviewers, dispatch them in the foreground, or wait for each report before returning. If you cannot delegate further, return each subagent assignment you need with its context as a request, as `next-slice` describes, so review stays independent; continue with the reports the orchestrator returns to you.
 
 Return your outcome, evidence, slice-branch commits, checkpoint file, and any questions, blockers, or findings for `slice`.

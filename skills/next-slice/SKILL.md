@@ -30,7 +30,7 @@ Correct stale code pointers and record discoveries in the checkpoint as they occ
 
 Demonstrate the slice's acceptance using the specified verification and current repository checks, exercising the API or UI when needed. Run any assigned integration checks across completed slices.
 
-Invoke `code-review` when available with the original fixed point, dirty snapshot (`plan status --json`), later unrelated changes to exclude, slice, shared agreed outcomes, constraints and exclusions, relevant decisions, and verification evidence. Otherwise review standards and contract compliance separately. Wait for every reviewer's report before going on. When you cannot dispatch reviewers yourself, return their assignments with their context to your caller as a request; the slice stays in progress while its review is pending. Fix blocking findings and rerun affected checks. For an experiment without code changes, assess its findings against its question and criteria instead of invoking a diff review.
+Invoke `code-review` when available with the original fixed point, dirty snapshot (`plan status --json`), later unrelated changes to exclude, slice, shared agreed outcomes, constraints and exclusions, relevant decisions, and verification evidence. Otherwise review standards and contract compliance separately. Dispatch reviewers in the foreground, or wait for each report before going on. When you cannot dispatch reviewers yourself, return their assignments with their context to your caller as a request; the slice stays in progress while its review is pending. Fix blocking findings and rerun affected checks. For an experiment without code changes, assess its findings against its question and criteria instead of invoking a diff review.
 
 ## 4. Commit and checkpoint
 
