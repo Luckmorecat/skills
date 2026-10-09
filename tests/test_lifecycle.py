@@ -529,8 +529,8 @@ class StatusTest(LifecycleTestCase):
         checkpoint = os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "01.md")
         view = json.loads(self.plan("status", "--json").out)
         self.assertEqual(view["blocked"], [
-            {"id": "01", "reason": "pause", "fixed_point": head, "checkpoint": checkpoint},
-            {"id": "03", "reason": "waiting", "fixed_point": None, "checkpoint": None},
+            {"id": "01", "reason": "pause", "fixed_point": head, "checkpoint": checkpoint, "worktree": None},
+            {"id": "03", "reason": "waiting", "fixed_point": None, "checkpoint": None, "worktree": None},
         ])
         out = self.plan("status").out
         self.assertIn(f"01  pause  (fixed point {head}; checkpoint {checkpoint})", out)
@@ -541,7 +541,8 @@ class StatusTest(LifecycleTestCase):
         self.plan("start", "01")
         checkpoint = os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "01.md")
         view = json.loads(self.plan("status", "--json").out)
-        self.assertEqual(view["in_progress"], [{"id": "01", "checkpoint": checkpoint, "fixed_point": head}])
+        self.assertEqual(view["in_progress"], [{"id": "01", "checkpoint": checkpoint, "fixed_point": head,
+                                                "worktree": None}])
         self.assertIn(f"01  {checkpoint}  (fixed point {head})", self.plan("status").out)
 
 

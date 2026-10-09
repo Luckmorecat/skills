@@ -60,6 +60,9 @@ state.json fields (written only by `plan`):
   run.grant            Autonomy grant for the run: {"granted": <UTC time>,
                        "note": <text or null>} from `plan grant`; null when not
                        granted or after `plan revoke`.
+  run.constraints      Scheduling constraints from `plan constrain`: a list of
+                       {"slices": [<ID>, <ID>], "reason": <text>}, each pair in
+                       ID order, meaning the two never run at once.
   slices.<ID>.file     Slice description file, relative to the plan directory.
   slices.<ID>.outcome  One-line observable outcome.
   slices.<ID>.status   One of: ready, in-progress, blocked, complete.
@@ -70,8 +73,13 @@ state.json fields (written only by `plan`):
                        Revision the slice started from (null when not recorded).
   slices.<ID>.snapshot `git status --porcelain` output when the slice started,
                        "" when clean (null when not recorded).
-  slices.<ID>.landed   Revisions `plan complete` recorded as landed: full shas,
-                       or the text given under --force (null until complete).
+  slices.<ID>.landed   Revisions `plan complete` or `plan land` recorded as
+                       landed: full shas, or the text given under --force (null
+                       until complete).
+  slices.<ID>.worktree Worktree from `plan start --worktree`: {"path": <absolute
+                       path>, "branch": <name>, "base": <sha>, "notes": [<text>]}
+                       with the resource notes; null for a slice in the
+                       repository checkout and after `plan land` removes it.
   decisions            Decision index keyed R1, R2, … in the order `plan decide`
                        allocated them; each decision's prose is in log.md under
                        its `R<n>` entry.
@@ -84,29 +92,34 @@ state.json fields (written only by `plan`):
   decisions.<R>.updated
                        UTC time of its last update (null until updated).
 
-planning_revision, fixed_point, snapshot, landed, and run.grant may be absent
-from a state.json written by an earlier `plan`; they read as null, and an
-absent decisions reads as {}.
+planning_revision, fixed_point, snapshot, landed, worktree, and run.grant may
+be absent from a state.json written by an earlier `plan`; they read as null,
+an absent decisions reads as {}, and an absent run.constraints as [].
 
 Other files in the plan directory:
   plan.md              Prose; `plan` regenerates only the marked status block.
   log.md               History; `plan` appends dated entries for imports,
-                       start, block, resume, and complete (with the evidence
-                       and the folded checkpoint), decisions (`R<n>` entries
-                       with their prose), grants and revocations, and forced
-                       overrides with their reasons.
+                       start, block, resume, complete and land (with the
+                       evidence and the folded checkpoint), worktree removal,
+                       constraints, target-tip changes, decisions (`R<n>`
+                       entries with their prose), grants and revocations, and
+                       forced overrides with their reasons.
   checkpoints/<ID>.md  Current checkpoint prose of a started slice, written by
-                       agents; `plan start` creates it, `plan complete` folds
-                       it into log.md and deletes it.
+                       agents; `plan start` creates it, `plan complete` and
+                       `plan land` fold it into log.md and delete it.
+  worktrees/<ID>       A slice's worktree when the plan directory is outside the
+                       repository (see `plan start --help`).
   .plan.lock           flock target held by every write.
 """
 
 FORCE_HELP = """\
 Guarded refusals (`slice add|edit` status changes outside ready/blocked, and
-each refusal of start, block, resume, complete, decide, grant, and revoke) are
-overridden with --force --reason <text>; the override and reason are appended
-to log.md. Integrity errors (duplicate IDs, missing dependencies, cycles,
-unknown decisions, decisions naming missing slices) are never overridden.
+each refusal of start, block, resume, complete, land, constrain, target-tip,
+decide, grant, and revoke that is not marked otherwise) are overridden with
+--force --reason <text>; the override and reason are appended to log.md.
+Integrity errors (duplicate IDs, missing dependencies, cycles, unknown
+decisions, decisions or constraints naming missing slices) are never
+overridden.
 """
 
 
@@ -219,13 +232,29 @@ def locked(plan_dir, discard_on_error=False):
 
 
 def run_git(repo, *args, strip=True):
+    code, out, _ = run_git_full(repo, *args)
+    return code, out.strip() if strip else out
+
+
+def run_git_full(repo, *args):
+    """Returns (exit code, stdout, stderr) of `git -C repo args`."""
     try:
         result = subprocess.run(
             ["git", "-C", repo, *args], capture_output=True, text=True
         )
     except FileNotFoundError:
         raise PlanError("git is not installed")
-    return result.returncode, result.stdout.strip() if strip else result.stdout
+    return result.returncode, result.stdout, result.stderr
+
+
+def git_or_fail(repo, *args):
+    """Runs a Git command that changes the repository, raising PlanError with Git's message on failure."""
+    code, out, err = run_git_full(repo, *args)
+    if code != 0:
+        message = " ".join((err + "\n" + out).split())
+        raise PlanError(f"`git {' '.join(args)}` failed in {repo} with exit code {code}"
+                        + (f": {message}" if message else " and no message (a Git hook may have failed)"))
+    return out
 
 
 def repo_root(path):
@@ -297,17 +326,19 @@ def fill_later_fields(state):
     state.setdefault("decisions", {})
     if isinstance(state.get("run"), dict):
         state["run"].setdefault("grant", None)
+        state["run"].setdefault("constraints", [])
     slices = state.get("slices")
     for s in slices.values() if isinstance(slices, dict) else ():
         if isinstance(s, dict):
             s.setdefault("fixed_point", None)
             s.setdefault("snapshot", None)
             s.setdefault("landed", None)
+            s.setdefault("worktree", None)
 
 
 def new_slice(file, outcome, status, reason, blocked_by):
     return {"file": file, "outcome": outcome, "status": status, "reason": reason,
-            "blocked_by": blocked_by, "fixed_point": None, "snapshot": None, "landed": None}
+            "blocked_by": blocked_by, "fixed_point": None, "snapshot": None, "landed": None, "worktree": None}
 
 
 def shape_problems(state):
@@ -329,6 +360,12 @@ def shape_problems(state):
         or "note" not in run["grant"] or wrong(run["grant"]["note"], optional)
     ):
         problems.append("run.grant must be null or {granted (string), note (string or null)}")
+    if isinstance(run, dict) and (wrong(run.get("constraints", []), list) or any(
+        wrong(c, dict) or wrong(c.get("slices"), list) or len(c["slices"]) != 2
+        or any(wrong(i, str) for i in c["slices"]) or wrong(c.get("reason"), str)
+        for c in run.get("constraints", [])
+    )):
+        problems.append("run.constraints must be a list of {slices: [ID, ID], reason (string)}")
     problems += decision_shape_problems(state.get("decisions", {}))
     slices = state.get("slices")
     if wrong(slices, dict):
@@ -349,6 +386,12 @@ def shape_problems(state):
         landed = s.get("landed")
         if landed is not None and (wrong(landed, list) or any(wrong(r, str) for r in landed)):
             problems.append(f"slices.{sid}.landed must be a list of strings or null")
+        tree = s.get("worktree")
+        if tree is not None and (
+            wrong(tree, dict) or any(wrong(tree.get(f), str) for f in ("path", "branch", "base"))
+            or wrong(tree.get("notes"), list) or any(wrong(n, str) for n in tree["notes"])
+        ):
+            problems.append(f"slices.{sid}.worktree must be null or {{path, branch, base, notes}}")
     return problems
 
 
@@ -610,7 +653,8 @@ def state_problems(state):
 
 def integrity_problems(state):
     """Problems no write may leave behind, --force or not."""
-    return id_collisions(state["slices"]) + graph_problems(state["slices"]) + decision_references(state)
+    return (id_collisions(state["slices"]) + graph_problems(state["slices"]) + decision_references(state)
+            + constraint_references(state))
 
 
 def sorted_decision_ids(decisions):
@@ -623,6 +667,17 @@ def decision_references(state):
         for did in sorted_decision_ids(state["decisions"])
         for sid in state["decisions"][did]["slices"] if sid not in state["slices"]
     ]
+
+
+def constraint_references(state):
+    problems = []
+    for c in state["run"]["constraints"]:
+        a, b = c["slices"]
+        if a == b:
+            problems.append(f"constraint {a}, {b} names one slice twice")
+        problems += [f"constraint {a}, {b} names slice {sid}, which does not exist"
+                     for sid in (a, b) if sid not in state["slices"]]
+    return problems
 
 
 # ---------------------------------------------------------------- writes
@@ -662,60 +717,76 @@ def with_log_entry(text, title, body):
 class Effects:
     """What a write does besides replacing state.json and the status block.
 
-    entry is a (title, body) log entry; create_checkpoint is a (path, text)
-    checkpoint written when the file is absent; remove_checkpoint is a path
-    deleted once state.json is saved.
+    entry is a (title, body) log entry, or a callable returning one after act
+    runs; create_checkpoint is a (path, text) checkpoint written when the file
+    is absent; act performs the write's Git work and returns a callable that
+    undoes it, or None when a later failure must keep it; remove_checkpoint is
+    a path deleted once state.json is saved.
     """
 
-    def __init__(self, entry=None, create_checkpoint=None, remove_checkpoint=None):
+    def __init__(self, entry=None, create_checkpoint=None, remove_checkpoint=None, act=None):
         self.entry = entry
         self.create_checkpoint = create_checkpoint
         self.remove_checkpoint = remove_checkpoint
+        self.act = act
 
 
 def write_plan(plan_dir, label, change, guard):
-    """Applies change(state) under the lock, then writes log, state, and status block.
-
-    change returns Effects or None. The log reaches disk before state.json, so
-    no override or transition can land unrecorded. When the write fails before
-    state.json is replaced, the log keeps only the forced-override record and
-    the files this write created are removed. A checkpoint to remove goes as
-    soon as state.json lands.
-    """
+    """Applies change(state) under the lock; see commit_change."""
     require_state(plan_dir)
     with locked(plan_dir):
-        state = load_state(plan_dir)
-        check_plan_file(plan_dir)
-        effects = change(state) or Effects()
-        problems = integrity_problems(state)
-        if problems:
-            raise PlanError("refused: " + "; ".join(problems))
-        log_path = os.path.join(plan_dir, LOG_FILE)
-        original = read_text(log_path) if os.path.exists(log_path) else None
-        kept = original
-        if guard.overridden:
-            lines = [f"Reason: {guard.reason}"] + [f"Overrode: {o}" for o in guard.overridden]
-            kept = with_log_entry(original or "", f"forced `plan {label}`", "\n".join(lines))
-        log_text = with_log_entry(kept or "", *effects.entry) if effects.entry else kept
-        created, logged = [], False
+        commit_change(plan_dir, label, change, guard)
+
+
+def commit_change(plan_dir, label, change, guard):
+    """Applies change(state), then its Git work, log, state, and status block; the caller holds the lock.
+
+    change returns Effects or None. Files reach disk in the order checkpoint,
+    forced-override record, Git work (act), transition entry, state.json, so
+    no override or transition can land unrecorded. When the write fails before
+    state.json is replaced, the log keeps only the forced-override record, the
+    Git work is undone when act says how, and the files this write created are
+    removed. A checkpoint to remove goes as soon as state.json lands.
+    """
+    state = load_state(plan_dir)
+    check_plan_file(plan_dir)
+    effects = change(state) or Effects()
+    problems = integrity_problems(state)
+    if problems:
+        raise PlanError("refused: " + "; ".join(problems))
+    log_path = os.path.join(plan_dir, LOG_FILE)
+    original = read_text(log_path) if os.path.exists(log_path) else None
+    kept = original
+    if guard.overridden:
+        lines = [f"Reason: {guard.reason}"] + [f"Overrode: {o}" for o in guard.overridden]
+        kept = with_log_entry(original or "", f"forced `plan {label}`", "\n".join(lines))
+    created, undo, logged = [], None, False
+    try:
+        if effects.create_checkpoint and not os.path.exists(effects.create_checkpoint[0]):
+            create_checkpoint(*effects.create_checkpoint, created)
+        if kept != original:
+            atomic_write(log_path, kept)
+        if effects.act:
+            undo = effects.act()
+        entry = effects.entry() if callable(effects.entry) else effects.entry
+        log_text = with_log_entry(kept or "", *entry) if entry else kept
+        if log_text != kept:
+            atomic_write(log_path, log_text)
+            logged = True
+        save_state(plan_dir, state)
+    except BaseException:
+        if logged:
+            restore_all({log_path: None if kept is None else kept.encode("utf-8")})
+        if undo:
+            undo()
+        remove_created(created)
+        raise
+    if effects.remove_checkpoint and os.path.exists(effects.remove_checkpoint):
         try:
-            if effects.create_checkpoint and not os.path.exists(effects.create_checkpoint[0]):
-                create_checkpoint(*effects.create_checkpoint, created)
-            if log_text != original:
-                atomic_write(log_path, log_text)
-                logged = True
-            save_state(plan_dir, state)
-        except BaseException:
-            if logged and log_text != kept:
-                restore_all({log_path: None if kept is None else kept.encode("utf-8")})
-            remove_created(created)
-            raise
-        if effects.remove_checkpoint and os.path.exists(effects.remove_checkpoint):
-            try:
-                os.remove(effects.remove_checkpoint)
-            except OSError as exc:
-                print(f"plan: note: could not delete {effects.remove_checkpoint}: {exc}", file=sys.stderr)
-        write_plan_file(plan_dir, state)
+            os.remove(effects.remove_checkpoint)
+        except OSError as exc:
+            print(f"plan: note: could not delete {effects.remove_checkpoint}: {exc}", file=sys.stderr)
+    write_plan_file(plan_dir, state)
 
 
 def create_checkpoint(path, text, created):
@@ -796,7 +867,7 @@ def cmd_init(args):
             "schema": SCHEMA_VERSION,
             "repo": repo,
             "planning_revision": tip,
-            "run": {"target": args.target, "target_tip": tip, "grant": None},
+            "run": {"target": args.target, "target_tip": tip, "grant": None, "constraints": []},
             "slices": {},
             "decisions": {},
         }
@@ -851,12 +922,36 @@ def cmd_slice_edit(args):
     print(f"Updated slice {args.id}")
 
 
-def eligible_ids(slices):
+def eligible_ids(state):
+    """Ready slices whose dependencies are complete and which no constraint keeps waiting."""
+    slices = state["slices"]
     return [
         sid for sid in sorted_ids(slices)
         if slices[sid]["status"] == "ready"
         and all(slices.get(d["id"], {}).get("status") == "complete" for d in slices[sid]["blocked_by"])
+        and not constraint_conflicts(state, sid)
     ]
+
+
+def constraint_conflicts(state, sid):
+    """Returns (other ID, reason, where it runs) for each running slice constrained against sid.
+
+    A slice runs while it is unfinished and has a worktree, or while it is in
+    progress in the repository checkout.
+    """
+    slices, conflicts = state["slices"], []
+    for c in state["run"]["constraints"]:
+        if sid not in c["slices"]:
+            continue
+        other = c["slices"][1] if c["slices"][0] == sid else c["slices"][0]
+        o = slices.get(other)
+        if other == sid or not o:
+            continue
+        if o["worktree"] and o["status"] != "complete":
+            conflicts.append((other, c["reason"], f"unfinished in worktree {o['worktree']['path']}"))
+        elif o["status"] == "in-progress" and not o["worktree"]:
+            conflicts.append((other, c["reason"], "in progress in the repository checkout"))
+    return conflicts
 
 
 def checkpoint_path(plan_dir, sid):
@@ -870,17 +965,26 @@ def status_view(plan_dir, state):
         "repo": state["repo"],
         "run": state["run"],
         "slices": slice_rows(slices),
-        "eligible": eligible_ids(slices),
+        "eligible": eligible_ids(state),
         "in_progress": [
-            {"id": sid, "checkpoint": checkpoint_path(plan_dir, sid), "fixed_point": slices[sid]["fixed_point"]}
+            {"id": sid, "checkpoint": checkpoint_path(plan_dir, sid), "fixed_point": slices[sid]["fixed_point"],
+             "worktree": slices[sid]["worktree"]}
             for sid in sorted_ids(slices) if slices[sid]["status"] == "in-progress"
         ],
         "blocked": [
             {"id": sid, "reason": slices[sid]["reason"], "fixed_point": slices[sid]["fixed_point"],
-             "checkpoint": checkpoint_path(plan_dir, sid) if slices[sid]["fixed_point"] else None}
+             "checkpoint": checkpoint_path(plan_dir, sid) if slices[sid]["fixed_point"] else None,
+             "worktree": slices[sid]["worktree"]}
             for sid in sorted_ids(slices) if slices[sid]["status"] == "blocked"
         ],
     }
+
+
+def worktree_text(tree):
+    if not tree:
+        return ""
+    notes = "; notes: " + "; ".join(tree["notes"]) if tree["notes"] else ""
+    return f"; worktree {tree['path']} on {tree['branch']} from {tree['base']}{notes}"
 
 
 def render_status(view):
@@ -893,10 +997,11 @@ def render_status(view):
              f"Autonomy: {autonomy}", ""]
     lines += render_table(view["slices"]) + [""]
     lines.append("Eligible: " + (", ".join(view["eligible"]) or "none"))
-    in_progress = [f"{row['checkpoint']}  (fixed point {row['fixed_point'] or 'not recorded'})"
+    in_progress = [f"{row['checkpoint']}  (fixed point {row['fixed_point'] or 'not recorded'}"
+                   f"{worktree_text(row['worktree'])})"
                    for row in view["in_progress"]]
-    blocked = [row["reason"] + (f"  (fixed point {row['fixed_point']}; checkpoint {row['checkpoint']})"
-                                if row["fixed_point"] else "")
+    blocked = [row["reason"] + (f"  (fixed point {row['fixed_point']}; checkpoint {row['checkpoint']}"
+                                f"{worktree_text(row['worktree'])})" if row["fixed_point"] else "")
                for row in view["blocked"]]
     for title, rows, texts in (("In progress", view["in_progress"], in_progress),
                                ("Blocked", view["blocked"], blocked)):
@@ -905,6 +1010,9 @@ def render_status(view):
             continue
         lines.append(f"{title}:")
         lines += [f"  {row['id']}  {text}" for row, text in zip(rows, texts)]
+    constraints = run["constraints"]
+    lines.append("Constraints:" + ("" if constraints else " none"))
+    lines += [f"  {', '.join(c['slices'])}  {c['reason']}" for c in constraints]
     return "\n".join(lines)
 
 
@@ -922,7 +1030,7 @@ def cmd_next(args):
     if args.limit is not None and args.limit < 1:
         raise PlanError("--limit must be at least 1")
     state = load_state(plan_dir_of(args))
-    for sid in eligible_ids(state["slices"])[: args.limit]:
+    for sid in eligible_ids(state)[: args.limit]:
         s = state["slices"][sid]
         print(f"{sid}\t{s['file']}\t{s['outcome']}")
 
@@ -955,11 +1063,19 @@ def fixed_point_of(repo):
     return tree
 
 
-def dirty_snapshot(repo):
-    """Returns `git status --porcelain` of the repository root, unstripped ("" when clean)."""
-    code, out = run_git(repo, "--no-optional-locks", "status", "--porcelain", strip=False)
+def dirty_snapshot(path, exclude=None):
+    """Returns `git status --porcelain` of the work tree at path, unstripped ("" when clean).
+
+    exclude is a path relative to that work tree's root left out of the report.
+    Untracked files are always listed, whatever status.showUntrackedFiles says,
+    since the dirt guards protect them and `git worktree remove` honours it.
+    """
+    args = ["--no-optional-locks", "status", "--porcelain", "--untracked-files=normal"]
+    if exclude:
+        args += ["--", ".", f":(exclude,literal){exclude}"]
+    code, out = run_git(path, *args, strip=False)
     if code != 0:
-        raise PlanError(f"cannot read `git status` in {repo}; is it a Git work tree?")
+        raise PlanError(f"cannot read `git status` in {path}; is it a Git work tree?")
     return out
 
 
@@ -1011,23 +1127,36 @@ def check_force_reason(args):
 
 
 def guard_in_place(state, sid, guard):
-    """Refuses a second slice in progress in the repository checkout, where every in-progress slice runs."""
+    """Refuses a second slice in progress in the repository checkout; slices with a worktree run elsewhere."""
     for other in sorted_ids(state["slices"]):
-        if other != sid and state["slices"][other]["status"] == "in-progress":
+        o = state["slices"][other]
+        if other != sid and o["status"] == "in-progress" and o["worktree"] is None:
             guard.check(False, f"slice {other} is already in progress in the repository checkout")
 
 
 def cmd_start(args):
     check_force_reason(args)
+    if args.note and not args.worktree:
+        raise PlanError("--note applies only with --worktree")
     guard = Guard(args)
     plan_dir = plan_dir_of(args)
+    outcome = {}
 
     def change(state):
         s = get_slice(state, args.id)
+        if s["worktree"]:
+            raise PlanError(f"slice {args.id} already has worktree {s['worktree']['path']} on branch "
+                            f"{s['worktree']['branch']}; continue it with `plan resume` or `plan land`")
         guard.check(s["status"] == "ready", f"slice {args.id} is {s['status']}, not ready")
         for dep in s["blocked_by"]:
             status = state["slices"][dep["id"]]["status"] if dep["id"] in state["slices"] else "missing"
             guard.check(status == "complete", f"slice {args.id} depends on {dep['id']}, which is {status}, not complete")
+        for other, reason, where in constraint_conflicts(state, args.id):
+            guard.check(False, f"slice {args.id} is constrained against {other}, which is {where} ({reason})")
+        if args.worktree:
+            effects = start_in_worktree(plan_dir, state, args.id, args.note or [], guard)
+            outcome["worktree"] = s["worktree"]
+            return effects
         guard_in_place(state, args.id, guard)
         repo = state["repo"]
         snapshot = dirty_snapshot(repo)
@@ -1043,8 +1172,13 @@ def cmd_start(args):
         return Effects(entry=(f"slice {args.id} started", "\n".join(body)),
                        create_checkpoint=(path, CHECKPOINT_TEMPLATE))
 
-    write_plan(plan_dir, f"start {args.id}", change, guard)
-    print(f"Started slice {args.id}; checkpoint {checkpoint_path(plan_dir, args.id)}")
+    write_plan(plan_dir, f"start {args.id}" + (" --worktree" if args.worktree else ""), change, guard)
+    if args.worktree:
+        tree = outcome["worktree"]
+        print(f"Started slice {args.id} in worktree {tree['path']} on branch {tree['branch']} from {tree['base']}; "
+              f"checkpoint {checkpoint_path(plan_dir, args.id)}")
+    else:
+        print(f"Started slice {args.id}; checkpoint {checkpoint_path(plan_dir, args.id)}")
 
 
 def cmd_block(args):
@@ -1074,13 +1208,15 @@ def cmd_resume(args):
         s = get_slice(state, args.id)
         guard.check(s["status"] == "blocked", f"slice {args.id} is {s['status']}, not blocked")
         started = s["fixed_point"] is not None
-        if started:
+        if started and s["worktree"] is None:
             guard_in_place(state, args.id, guard)
         outcome["status"] = "in-progress" if started else "ready"
         s.update(status=outcome["status"], reason=None, landed=None)
         detail = f"fixed point {s['fixed_point']}" if started else "not started"
         path = checkpoint_path(plan_dir, args.id)
         body = [f"Status: {outcome['status']} ({detail})"]
+        if s["worktree"]:
+            body.append(f"Worktree: {s['worktree']['path']} on {s['worktree']['branch']}")
         if started and not os.path.exists(path):
             body.append(f"Checkpoint: {CHECKPOINT_DIR}/{args.id}.md (created; none was recorded)")
         return Effects(entry=(f"slice {args.id} resumed", "\n".join(body)),
@@ -1088,6 +1224,17 @@ def cmd_resume(args):
 
     write_plan(plan_dir, f"resume {args.id}", change, guard)
     print(f"Resumed slice {args.id} as {outcome['status']}")
+
+
+def folded_prose(plan_dir, sid, evidence):
+    """Returns the log lines holding the evidence and the slice's checkpoint, headings nested under the entry."""
+    path = checkpoint_path(plan_dir, sid)
+    body = ["Evidence:", "", nested_prose(evidence).strip("\n") or "(none)", ""]
+    if os.path.isfile(path):
+        body += [f"Checkpoint ({CHECKPOINT_DIR}/{sid}.md):", "", nested_prose(read_text(path)).strip("\n")]
+    else:
+        body.append(f"No checkpoint file {CHECKPOINT_DIR}/{sid}.md was found.")
+    return body
 
 
 def read_text_argument(value, what):
@@ -1148,6 +1295,9 @@ def cmd_complete(args):
     def change(state):
         s = get_slice(state, args.id)
         guard.check(s["status"] == "in-progress", f"slice {args.id} is {s['status']}, not in-progress")
+        if s["worktree"]:
+            guard.check(False, f"slice {args.id} runs in worktree {s['worktree']['path']}; land it with "
+                        f"`plan land {args.id}`")
         landed = []
         for rev in args.rev:
             full = landed_revision(state, s, rev, guard)
@@ -1155,18 +1305,395 @@ def cmd_complete(args):
                 landed.append(full)
         guard.check(evidence.strip() != "", "evidence is empty")
         path = checkpoint_path(plan_dir, args.id)
-        body = [f"Landed: {', '.join(landed)}", f"Fixed point: {s['fixed_point'] or 'not recorded'}", "",
-                "Evidence:", "", nested_prose(evidence).strip("\n") or "(none)", ""]
-        if os.path.isfile(path):
-            body += [f"Checkpoint ({CHECKPOINT_DIR}/{args.id}.md):", "", nested_prose(read_text(path)).strip("\n")]
-        else:
-            body.append(f"No checkpoint file {CHECKPOINT_DIR}/{args.id}.md was found.")
+        body = [f"Landed: {', '.join(landed)}", f"Fixed point: {s['fixed_point'] or 'not recorded'}", ""]
+        body += folded_prose(plan_dir, args.id, evidence)
         s.update(status="complete", reason=None, landed=landed)
         body += ["", advance_target_tip(state, landed)]
         return Effects(entry=(f"slice {args.id} complete", "\n".join(body)), remove_checkpoint=path)
 
     write_plan(plan_dir, f"complete {args.id}", change, guard)
     print(f"Completed slice {args.id}")
+
+
+# ---------------------------------------------------------------- worktrees and landing
+
+
+WORKTREE_DIR = "worktrees"
+
+
+def inside(path, root):
+    """Returns path relative to root when path is root or inside it, else None (both resolved)."""
+    path, root = os.path.realpath(path), os.path.realpath(root)
+    return os.path.relpath(path, root) if os.path.commonpath([path, root]) == root else None
+
+
+def worktree_path(plan_dir, repo, sid):
+    """Where slice sid's worktree goes: in the plan directory, or under the Striker state root when that is in the repository."""
+    if inside(plan_dir, repo) is None:
+        return os.path.join(plan_dir, WORKTREE_DIR, sid)
+    state_home = os.environ.get("XDG_STATE_HOME") or os.path.join(os.path.expanduser("~"), ".local", "state")
+    root = os.environ.get("STRIKER_ROOT") or os.path.join(state_home, "striker")
+    return os.path.join(os.path.abspath(root), WORKTREE_DIR, os.path.basename(repo), os.path.basename(plan_dir), sid)
+
+
+def worktree_branch(repo, plan_dir, sid):
+    """Names slice sid's branch `plan/<plan directory name>/<ID>`, with characters Git refuses replaced by `-`."""
+    name = re.sub(r"\.{2,}|[^A-Za-z0-9._-]+", "-", os.path.basename(plan_dir)).strip(".-") or "plan"
+    branch = f"plan/{name}/{sid}"
+    if run_git(repo, "check-ref-format", "--branch", branch)[0] != 0:
+        raise PlanError(f"slice {sid} cannot get a branch: {branch!r} is not a valid branch name")
+    return branch
+
+
+def checked_out_branch(repo):
+    code, head = run_git(repo, "symbolic-ref", "--quiet", "HEAD")
+    return head[len("refs/heads/"):] if code == 0 and head.startswith("refs/heads/") else None
+
+
+def porcelain_paths(text, limit=5):
+    paths = [line[3:] for line in text.splitlines() if line.strip()]
+    return ", ".join(paths[:limit]) + (f", and {len(paths) - limit} more" if len(paths) > limit else "")
+
+
+def root_dirt(plan_dir, repo):
+    """Returns `git status --porcelain` of the repository root, leaving out the plan directory ("" when clean)."""
+    relative = inside(plan_dir, repo)
+    return dirty_snapshot(repo, exclude=None if relative == "." else relative)
+
+
+def worktree_dirt(path):
+    """Returns `git status --porcelain` in a slice worktree, or None when the worktree is missing."""
+    return dirty_snapshot(path) if os.path.isdir(path) else None
+
+
+def on_target_refusal(repo, target):
+    """Returns the refusal text when the repository root does not have target checked out, else None."""
+    current = checked_out_branch(repo)
+    if current == target:
+        return None
+    return f"the repository root {repo} has {current or 'a detached HEAD'} checked out, not {target}"
+
+
+def guard_root(plan_dir, state, guard, check_tip=True):
+    """Guards that the repository root has the target checked out at the recorded tip, clean outside the plan directory."""
+    repo, run = state["repo"], state["run"]
+    target, recorded = run["target"], run["target_tip"]
+    refusal = on_target_refusal(repo, target)
+    guard.check(refusal is None, refusal)
+    live = commit_of(repo, f"refs/heads/{target}")
+    if check_tip:
+        guard.check(live == recorded, f"{target} is at {live or '(unborn)'}, not the recorded tip "
+                    f"{recorded or '(unborn)'}; record outside commits with `plan target-tip`")
+    dirt = root_dirt(plan_dir, repo)
+    guard.check(dirt == "", f"the repository root {repo} has uncommitted changes outside the plan directory "
+                f"({porcelain_paths(dirt)})")
+    return live
+
+
+def make_parents(directory, created):
+    """Creates directory and its missing parents, appending each one it creates to created."""
+    missing = []
+    while not os.path.isdir(directory):
+        missing.append(directory)
+        directory = os.path.dirname(directory)
+    for path in reversed(missing):
+        os.mkdir(path)
+        created.append(path)
+
+
+def start_in_worktree(plan_dir, state, sid, notes, guard):
+    """Plans `start --worktree`: a branch and worktree at the recorded target tip, created by Effects.act."""
+    repo, run = state["repo"], state["run"]
+    recorded = run["target_tip"]
+    if recorded is None:
+        raise PlanError(f"{run['target']} has no recorded tip; a worktree starts from a commit")
+    guard_root(plan_dir, state, guard)
+    path, branch = worktree_path(plan_dir, repo, sid), worktree_branch(repo, plan_dir, sid)
+    if os.path.lexists(path):
+        raise PlanError(f"{path} already exists; remove what an earlier start left there, then start again")
+    if commit_of(repo, f"refs/heads/{branch}"):
+        raise PlanError(f"branch {branch} already exists in {repo}; delete what an earlier start left, "
+                        "then start again")
+    s = state["slices"][sid]
+    previous = s["fixed_point"]
+    s.update(status="in-progress", reason=None, fixed_point=recorded, snapshot="", landed=None,
+             worktree={"path": path, "branch": branch, "base": recorded, "notes": list(notes)})
+    checkpoint = checkpoint_path(plan_dir, sid)
+    exists = os.path.exists(checkpoint)
+
+    def act():
+        created = []
+
+        def undo():
+            """Removes whatever part of the worktree and branch Git made; neither existed before this start."""
+            if os.path.lexists(path):
+                run_git_full(repo, "worktree", "remove", "--force", path)
+            if os.path.lexists(path):
+                shutil.rmtree(path, ignore_errors=True)
+            run_git_full(repo, "worktree", "prune")
+            if commit_of(repo, f"refs/heads/{branch}"):
+                code, _, err = run_git_full(repo, "branch", "-D", branch)
+                if code != 0:
+                    print(f"plan: error: could not delete branch {branch}: {err.strip()}", file=sys.stderr)
+            if os.path.lexists(path):
+                print(f"plan: error: could not remove {path}", file=sys.stderr)
+            remove_created(created)
+
+        make_parents(os.path.dirname(path), created)
+        try:
+            git_or_fail(repo, "worktree", "add", "--quiet", "-b", branch, path, recorded)
+            s["snapshot"] = dirty_snapshot(path)
+        except BaseException:
+            undo()
+            raise
+        return undo
+
+    def entry():
+        body = [f"Worktree: {path}", f"Branch: {branch}", f"Base: {recorded}", f"Fixed point: {recorded}"]
+        if previous and previous != recorded:
+            body.append(f"Replaces fixed point: {previous}")
+        body.append("Dirty snapshot: clean" if s["snapshot"] == "" else "Dirty snapshot:\n\n" + fenced(s["snapshot"]))
+        body += [f"Note: {note}" for note in notes]
+        body.append(f"Checkpoint: {CHECKPOINT_DIR}/{sid}.md ({'kept' if exists else 'created'})")
+        return f"slice {sid} started", "\n".join(body)
+
+    return Effects(entry=entry, create_checkpoint=(checkpoint, CHECKPOINT_TEMPLATE), act=act)
+
+
+def revisions_between(repo, base, tip):
+    """Returns the commits in base..tip (all of tip's history when base is None), oldest first."""
+    code, out = run_git(repo, "rev-list", "--reverse", tip if base is None else f"{base}..{tip}")
+    if code != 0:
+        raise PlanError(f"cannot list the commits between {base} and {tip} in {repo}")
+    return out.split()
+
+
+def tip_before(repo, branch, tip):
+    """Returns what branch pointed at before its reflog reached tip, or None when the reflog does not say.
+
+    Reads the reflog's (old, new) pairs newest first and takes the old value
+    of the latest move to tip that came from outside tip's descendants, so a
+    commit made after reaching tip and then reset away is skipped.
+    """
+    code, path = run_git(repo, "rev-parse", "--git-path", f"logs/refs/heads/{branch}")
+    if code != 0:
+        return None
+    try:
+        lines = read_text(os.path.join(repo, path)).splitlines()
+    except (OSError, UnicodeDecodeError):
+        return None
+    for line in reversed(lines):
+        fields = line.split(" ", 2)
+        if len(fields) < 2 or fields[1] != tip:
+            continue
+        old = fields[0]
+        if set(old) == {"0"}:
+            return None  # the branch was created at tip
+        if old != tip and not is_ancestor(repo, tip, old):
+            return old
+    return None
+
+
+def land_change(plan_dir, state, sid, evidence, guard, outcome):
+    """Plans the fast-forward and bookkeeping of `plan land`; None when an earlier land already did them."""
+    s = get_slice(state, sid)
+    tree = s["worktree"]
+    if tree is None:
+        raise PlanError(f"slice {sid} has no worktree; complete a slice in the repository checkout with "
+                        "`plan complete`")
+    if s["status"] == "complete":
+        outcome["finished"] = False
+        return None
+    guard.check(s["status"] == "in-progress", f"slice {sid} is {s['status']}, not in-progress")
+    repo, run = state["repo"], state["run"]
+    target, recorded = run["target"], run["target_tip"]
+    refusal = on_target_refusal(repo, target)
+    if refusal:
+        raise PlanError(f"{refusal}; `plan land` fast-forwards {target} there")
+    tip = commit_of(repo, f"refs/heads/{tree['branch']}")
+    if tip is None:
+        raise PlanError(f"branch {tree['branch']} of slice {sid} does not exist in {repo}")
+    live = commit_of(repo, f"refs/heads/{target}")
+    if live is None:
+        raise PlanError(f"target branch {target} does not exist in {repo}")
+    guard.check(evidence.strip() != "", "evidence is empty")
+    dirt = worktree_dirt(tree["path"])
+    guard.check(not dirt, f"worktree {tree['path']} has uncommitted changes ({porcelain_paths(dirt or '')}); "
+                f"commit them to {tree['branch']} or remove them")
+    act = None
+    contained = is_ancestor(repo, tip, live)
+    if contained and recorded != tip and (recorded is None or is_ancestor(repo, recorded, tip)):
+        # An earlier land fast-forwarded the target past the recorded tip and stopped. What the target held
+        # before that fast-forward must not be beyond the recorded tip, or outside commits would count as landed.
+        prior = tip_before(repo, target, tip)
+        if prior is None:
+            guard.check(recorded is None, f"{target}'s reflog does not show where it reached {tip} from, so "
+                        f"commits after the recorded tip {recorded} cannot be ruled out")
+        else:
+            guard.check(recorded is None or is_ancestor(repo, prior, recorded),
+                        f"{target} reached {tip} from {prior}, which holds commits after the recorded tip "
+                        f"{recorded}; record them with `plan target-tip {prior}` first")
+        # forced past a prior beyond the recorded tip, only what the fast-forward added counts as landed
+        before = prior if prior and recorded and not is_ancestor(repo, prior, recorded) else recorded
+        moves = True
+        forward = f"Fast-forward: none; {target} already contains {tip} (finishing an earlier `plan land`)"
+    elif contained:
+        guard_root(plan_dir, state, guard)  # its checkout check already passed above
+        before, moves = live, False  # the branch holds nothing the target lacks
+        forward = f"Fast-forward: none; {target} already contains {tip}"
+    else:
+        guard_root(plan_dir, state, guard)
+        if not is_ancestor(repo, live, tip):
+            raise PlanError(f"branch {tree['branch']} at {tip} is not a fast-forward of {target} at {live}; "
+                            f"rebase it onto {live} in {tree['path']}")
+        before, moves = live, True
+        forward = f"Fast-forward: {target} {live} -> {tip}"
+
+        def act():
+            # the reflog entry lets a rerun after a crash confirm where the target came from
+            git_or_fail(repo, "-c", "core.logAllRefUpdates=true", "merge", "--ff-only", "--quiet", tip)
+            # a failure after this point keeps the fast-forward; rerunning `plan land` finishes the bookkeeping
+
+    landed = revisions_between(repo, before, tip) or [tip]
+    if moves:
+        run["target_tip"] = tip
+        tip_line = f"Target tip: {recorded} -> {tip}"
+    else:
+        tip_line = f"Target tip: kept at {recorded}"
+    if live not in (tip, recorded) and is_ancestor(repo, tip, live):
+        tip_line += f"; {target} is at {live}, beyond it; record outside commits with `plan target-tip`"
+    s.update(status="complete", reason=None, landed=landed)
+    body = [f"Landed: {', '.join(landed)}", f"Branch: {tree['branch']} at {tip}", f"Base: {tree['base']}",
+            f"Fixed point: {s['fixed_point'] or 'not recorded'}", forward, tip_line, ""]
+    body += folded_prose(plan_dir, sid, evidence)
+    outcome.update(finished=True, tip=tip)
+    return Effects(entry=(f"slice {sid} landed", "\n".join(body)), remove_checkpoint=checkpoint_path(plan_dir, sid),
+                   act=act)
+
+
+def removal_change(plan_dir, state, sid, guard, outcome):
+    """Plans removing a landed slice's worktree and branch; None when they are already gone from the state."""
+    s = get_slice(state, sid)
+    tree = s["worktree"]
+    if tree is None or s["status"] != "complete":
+        return None
+    repo, target = state["repo"], state["run"]["target"]
+    branch_tip = commit_of(repo, f"refs/heads/{tree['branch']}")
+    live = commit_of(repo, f"refs/heads/{target}")
+    if branch_tip:
+        guard.check(live is not None and is_ancestor(repo, branch_tip, live),
+                    f"branch {tree['branch']} at {branch_tip} holds commits {target} lacks; land or drop them, "
+                    f"then rerun `plan land {sid}`")
+    dirt = worktree_dirt(tree["path"])
+    guard.check(not dirt, f"worktree {tree['path']} has uncommitted changes ({porcelain_paths(dirt or '')}); "
+                "they would be deleted with it")
+    s["worktree"] = None
+    outcome["removed"] = tree
+
+    def act():
+        if os.path.isdir(tree["path"]):
+            # --force only after the guard above was overridden, so deleted changes are on record in log.md
+            git_or_fail(repo, "worktree", "remove", *(["--force"] if dirt else []), tree["path"])
+        else:
+            run_git(repo, "worktree", "prune")
+        if branch_tip:
+            git_or_fail(repo, "branch", "-D", tree["branch"])
+        for parent in (os.path.dirname(tree["path"]), os.path.dirname(os.path.dirname(tree["path"]))):
+            try:
+                os.rmdir(parent)  # only empty worktree folders go
+            except OSError:
+                break
+
+    lines = [f"Worktree: {tree['path']} (removed)", f"Branch: {tree['branch']} (deleted)"]
+    lines += [f"Released: {note}" for note in tree["notes"]]
+    # A checkpoint left by a land stopped before deleting it was already folded into log.md.
+    return Effects(entry=(f"slice {sid} worktree removed", "\n".join(lines)), act=act,
+                   remove_checkpoint=checkpoint_path(plan_dir, sid))
+
+
+def cmd_land(args):
+    check_force_reason(args)
+    plan_dir = plan_dir_of(args)
+    evidence = read_text_argument(args.evidence, "evidence")
+    require_state(plan_dir)
+    outcome = {}
+    landing, removal = Guard(args), Guard(args)
+    with locked(plan_dir):
+        commit_change(plan_dir, f"land {args.id}",
+                      lambda state: land_change(plan_dir, state, args.id, evidence, landing, outcome), landing)
+        commit_change(plan_dir, f"land {args.id}",
+                      lambda state: removal_change(plan_dir, state, args.id, removal, outcome), removal)
+    if outcome.get("finished"):
+        print(f"Landed slice {args.id} at {outcome['tip']}")
+    else:
+        print(f"Slice {args.id} was already landed; finished its cleanup")
+    if outcome.get("removed"):
+        print(f"Removed worktree {outcome['removed']['path']} and branch {outcome['removed']['branch']}")
+
+
+def require_reason(args, command):
+    if not args.reason or not args.reason.strip():
+        raise PlanError(f"{command} requires --reason <text>")
+
+
+def cmd_constrain(args):
+    require_reason(args, "constrain")
+    for sid in (args.a, args.b):
+        check_id(sid)
+    if args.a == args.b:
+        raise PlanError("a constraint names two different slices")
+    guard = Guard(args)
+    pair = sorted([args.a, args.b], key=natural_key)
+
+    def change(state):
+        for sid in pair:
+            get_slice(state, sid)
+        constraints = state["run"]["constraints"]
+        existing = next((c for c in constraints if c["slices"] == pair), None)
+        lines = [f"Reason: {args.reason}"]
+        if existing:
+            guard.check(False, f"slices {pair[0]} and {pair[1]} are already constrained ({existing['reason']})")
+            lines.append(f"Replaces reason: {existing['reason']}")
+            existing["reason"] = args.reason
+        else:
+            constraints.append({"slices": pair, "reason": args.reason})
+            constraints.sort(key=lambda c: [natural_key(i) for i in c["slices"]])
+        running = [sid for sid in pair if state["slices"][sid]["worktree"]
+                   and state["slices"][sid]["status"] != "complete"]
+        if len(running) == 2:
+            lines.append("Both slices already run in worktrees; the constraint applies from their next start.")
+        return Effects(entry=(f"constraint {pair[0]}, {pair[1]}", "\n".join(lines)))
+
+    write_plan(plan_dir_of(args), f"constrain {pair[0]} {pair[1]}", change, guard)
+    print(f"Constrained slices {pair[0]} and {pair[1]}")
+
+
+def cmd_target_tip(args):
+    require_reason(args, "target-tip")
+    guard = Guard(args)
+    outcome = {}
+
+    def change(state):
+        repo, run = state["repo"], state["run"]
+        target, recorded = run["target"], run["target_tip"]
+        full = commit_of(repo, args.sha)
+        if full is None:
+            raise PlanError(f"revision {args.sha} is not a commit in {repo}")
+        guard.check(full != recorded, f"{full} is already the recorded tip")
+        descends = recorded is None or is_ancestor(repo, recorded, full)
+        guard.check(descends, f"revision {args.sha} does not descend from the recorded tip {recorded}")
+        live = commit_of(repo, f"refs/heads/{target}")
+        guard.check(live is not None and is_ancestor(repo, full, live),
+                    f"revision {args.sha} is not the tip of {target} or its ancestor")
+        lines = [f"Target tip: {recorded or 'unborn'} -> {full}"]
+        if descends and full != recorded:
+            lines.append(f"Commits accepted: {len(revisions_between(repo, recorded, full))}")
+        lines.append(f"Reason: {args.reason}")
+        run["target_tip"] = outcome["tip"] = full
+        return Effects(entry=("target tip recorded", "\n".join(lines)))
+
+    write_plan(plan_dir_of(args), "target-tip", change, guard)
+    print(f"Recorded target tip {outcome['tip']}")
 
 
 # ---------------------------------------------------------------- decisions and autonomy
@@ -1669,7 +2196,7 @@ def build_state(plan_dir, lines, table, repo_arg, target_arg):
         "schema": SCHEMA_VERSION,
         "repo": repo,
         "planning_revision": revision and (resolve_revision(repo, revision) or revision),
-        "run": {"target": target, "target_tip": branch_tip(repo, target), "grant": None},
+        "run": {"target": target, "target_tip": branch_tip(repo, target), "grant": None, "constraints": []},
         "slices": slices,
         "decisions": {},
     }
@@ -1802,8 +2329,8 @@ def build_parser():
     parser = argparse.ArgumentParser(
         prog="plan",
         description="Own a slice plan's mechanical state: status, dependencies, "
-        "eligibility, run state, the autonomy grant, and the decision index. Run it as "
-        "`python3 <path>/plan`.",
+        "eligibility, run state, worktrees, scheduling constraints, the autonomy grant, and the "
+        "decision index. Run it as `python3 <path>/plan`.",
         epilog=STATE_FIELDS + "\n" + FORCE_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         parents=[plan_option()],
@@ -1899,11 +2426,12 @@ def build_parser():
         parents=[plan_option()],
         help="show slices, eligible work, in-progress and blocked slices, and run state",
         description="Print the slice table, eligible slices, in-progress slices with their "
-        "checkpoint path, blocked slices with their reason, and the run state, including the "
-        "autonomy grant.",
-        epilog="--json prints one object with keys: plan, repo, run (target, target_tip, grant), slices "
-        "(each with id and the state.json slice fields), eligible, in_progress ({id, checkpoint, "
-        "fixed_point}), blocked ({id, reason, fixed_point, checkpoint}).",
+        "checkpoint path and worktree, blocked slices with their reason, and the run state, "
+        "including the autonomy grant and the scheduling constraints.",
+        epilog="--json prints one object with keys: plan, repo, run (target, target_tip, grant, "
+        "constraints), slices (each with id and the state.json slice fields), eligible, in_progress "
+        "({id, checkpoint, fixed_point, worktree}), blocked ({id, reason, fixed_point, checkpoint, "
+        "worktree}).",
     )
     status.add_argument("--json", action="store_true", help="print the view as one JSON object")
     status.set_defaults(func=cmd_status)
@@ -1913,8 +2441,10 @@ def build_parser():
         parents=[plan_option()],
         help="list slices ready to start",
         description="List ready slices whose dependencies are all complete, in ID order, "
-        "one per line as ID<TAB>file<TAB>outcome.",
-        epilog="Reads state.json fields: slices.<ID>.status, blocked_by, file, outcome.",
+        "one per line as ID<TAB>file<TAB>outcome, leaving out a slice constrained against a "
+        "running slice: one unfinished with a worktree, or in progress in the repository checkout.",
+        epilog="Reads state.json fields: slices.<ID>.status, blocked_by, file, outcome, worktree; "
+        "run.constraints.",
     )
     next_cmd.add_argument("--limit", type=int, metavar="N", help="list at most N slices")
     next_cmd.set_defaults(func=cmd_next)
@@ -1928,18 +2458,33 @@ def add_lifecycle_commands(sub):
     start = sub.add_parser(
         "start",
         parents=[plan_option(), force_options(FORCE_REASON_HELP)],
-        help="start a ready slice in the repository checkout",
-        description="Mark a ready slice in-progress after its dependencies are complete, while no "
-        "other slice is in progress in the repository checkout. Records the fixed point (`git "
-        "rev-parse HEAD`, or the empty-tree hash in an unborn repository) and `git status "
-        "--porcelain` of the repository root, and creates checkpoints/<ID>.md as `Not started.` "
-        "when absent.",
+        help="start a ready slice in the repository checkout or in its own worktree",
+        description="Mark a ready slice in-progress after its dependencies are complete, unless it "
+        "shares a constraint with a running slice (unfinished with a worktree, or in progress in the "
+        "repository checkout), and create "
+        "checkpoints/<ID>.md as `Not started.` when absent.\n\n"
+        "In the repository checkout (the default), no other slice may be in progress there; the "
+        "fixed point is `git rev-parse HEAD` (the empty-tree hash in an unborn repository) and the "
+        "snapshot is `git status --porcelain` of the repository root.\n\n"
+        "With --worktree, the slice gets the branch plan/<plan directory name>/<ID> and a worktree "
+        "at the recorded target tip, which is its fixed point; the snapshot is the new worktree's "
+        "status. The worktree goes to worktrees/<ID> in the plan directory or, when the plan "
+        "directory is inside the repository, to "
+        "${STRIKER_ROOT:-${XDG_STATE_HOME:-$HOME/.local/state}/striker}/worktrees/<repo>/<plan>/<ID>, "
+        "where <repo> and <plan> are the repository root's and the plan directory's names. Refused "
+        "(guarded) when the repository root does not have the target checked out at the recorded "
+        "tip or has uncommitted changes outside the plan directory; refused outright when the path "
+        "or branch already exists or the target has no recorded tip.",
         epilog="Writes state.json fields: slices.<ID>.status, reason, fixed_point, snapshot, landed "
-        "(null); appends a `slice <ID> started` entry to log.md. A forced start of a started slice "
-        "records a new fixed point and logs the one it replaces.\n\n" + FORCE_HELP,
+        "(null), and worktree ({path, branch, base, notes}) with --worktree; appends a `slice <ID> "
+        "started` entry to log.md. A forced start of a started slice records a new fixed point and "
+        "logs the one it replaces; a slice that records a worktree is not started again.\n\n" + FORCE_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     start.add_argument("id", metavar="ID", help="slice ID")
+    start.add_argument("--worktree", action="store_true", help="run the slice in its own branch and worktree")
+    start.add_argument("--note", action="append", metavar="TEXT",
+                       help="resource note for the worktree (port, database, cache); repeatable; only with --worktree")
     start.set_defaults(func=cmd_start)
 
     block = sub.add_parser(
@@ -1961,9 +2506,9 @@ def add_lifecycle_commands(sub):
         parents=[plan_option(), force_options(FORCE_REASON_HELP)],
         help="resume a blocked slice",
         description="Move a blocked slice back to in-progress when it had started (its fixed point "
-        "is recorded), otherwise to ready. Resuming to in-progress is refused while another slice "
-        "is in progress in the repository checkout, keeps the fixed point and snapshot, and creates "
-        "checkpoints/<ID>.md when absent.",
+        "is recorded), otherwise to ready. Resuming to in-progress keeps the fixed point, snapshot, "
+        "and worktree, and creates checkpoints/<ID>.md when absent; for a slice without a worktree "
+        "it is refused while another slice is in progress in the repository checkout.",
         epilog="Writes state.json fields: slices.<ID>.status, reason, landed (null); appends a "
         "`slice <ID> resumed` entry to log.md.\n\n" + FORCE_HELP,
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -1975,7 +2520,8 @@ def add_lifecycle_commands(sub):
         "complete",
         parents=[plan_option(), force_options(FORCE_REASON_HELP)],
         help="complete an in-progress slice with landed revisions and evidence",
-        description="Mark an in-progress slice complete. Each --rev must be the target branch's tip "
+        description="Mark an in-progress slice complete; a slice with a worktree is landed with "
+        "`plan land` instead. Each --rev must be the target branch's tip "
         "or its ancestor, or equal the slice's fixed point for a no-code result; evidence must be "
         "non-empty. Appends the landed revisions, the evidence, and checkpoints/<ID>.md to log.md "
         "under a `slice <ID> complete` entry, with headings shifted to nest under it, then deletes "
@@ -1992,6 +2538,71 @@ def add_lifecycle_commands(sub):
     complete.add_argument("--evidence", required=True, metavar="TEXT|@FILE",
                           help="acceptance evidence, or @path to read it from a file")
     complete.set_defaults(func=cmd_complete)
+
+    land = sub.add_parser(
+        "land",
+        parents=[plan_option(), force_options(FORCE_REASON_HELP)],
+        help="fast-forward the target to a worktree slice's branch and finish the slice",
+        description="Land an in-progress slice that has a worktree, after its branch was rebased onto "
+        "the target tip. Fast-forwards the target branch in the repository root to the slice "
+        "branch, records the commits it adds as landed, appends a `slice <ID> landed` entry with "
+        "the evidence and checkpoints/<ID>.md (headings nested) to log.md and deletes the "
+        "checkpoint, moves the recorded target tip to the slice branch, marks the slice complete, "
+        "then removes the worktree and branch with a `slice <ID> worktree removed` entry.\n\n"
+        "Guarded refusals: the slice is not in-progress, the evidence is empty, the worktree has "
+        "uncommitted changes, the repository root has uncommitted changes outside the plan "
+        "directory, the target tip differs from the recorded tip, or, at removal, the branch holds "
+        "commits the target lacks. Refused outright: the slice has no worktree, the repository root "
+        "does not have the target checked out, the slice branch or the target branch does not "
+        "exist, or the branch is not a fast-forward of the target.\n\n"
+        "Resuming: when the target already contains the slice branch's tip, as after a land that "
+        "stopped after its fast-forward, a rerun skips the fast-forward and finishes the "
+        "bookkeeping, refusing (guarded) when the target's reflog shows it held commits after the "
+        "recorded tip just before reaching the branch tip, or does not show where it came from; for a complete slice whose worktree is still recorded, it only removes the "
+        "worktree and branch (and a leftover checkpoint), without using --evidence. The branch is "
+        "deleted only when the target contains it. A land killed after writing its log entry but "
+        "before state.json leaves that entry in log.md; the rerun appends a complete one.",
+        epilog="Writes state.json fields: slices.<ID>.status, reason, landed (the commits between the "
+        "target tip and the branch tip, oldest first; the branch tip when there are none), worktree "
+        "(null once removed), and run.target_tip.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    land.add_argument("id", metavar="ID", help="slice ID")
+    land.add_argument("--evidence", required=True, metavar="TEXT|@FILE",
+                      help="verification and review evidence for the rebased branch, or @path to read it from a file")
+    land.set_defaults(func=cmd_land)
+
+    constrain = sub.add_parser(
+        "constrain",
+        parents=[plan_option(), force_options("why the two slices never run at once (required); with "
+                                              "--force, also why the guard is overridden")],
+        help="record that two slices never run at once",
+        description="Record a symmetric scheduling constraint between slices A and B, kept apart from "
+        "dependencies. While one of them runs (unfinished with a worktree, or in progress in the "
+        "repository checkout), `plan next` omits the other and `plan start` refuses it. Constraining an already constrained pair is a guarded "
+        "refusal; forced, it replaces the reason.",
+        epilog="Writes state.json field: run.constraints; appends a `constraint <A>, <B>` entry to "
+        "log.md.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    constrain.add_argument("a", metavar="A", help="slice ID")
+    constrain.add_argument("b", metavar="B", help="slice ID")
+    constrain.set_defaults(func=cmd_constrain)
+
+    target_tip = sub.add_parser(
+        "target-tip",
+        parents=[plan_option(), force_options("why the target tip moves (required); with --force, also "
+                                              "why the guard is overridden")],
+        help="accept outside commits on the target branch as the recorded tip",
+        description="Record SHA as the target tip after commits made outside the plan. Guarded "
+        "refusals: SHA does not descend from the recorded tip, is not the target's tip or its "
+        "ancestor, or already is the recorded tip. A revision that is not a commit is refused outright.",
+        epilog="Writes state.json field: run.target_tip; appends a `target tip recorded` entry with the "
+        "reason to log.md.\n\n" + FORCE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    target_tip.add_argument("sha", metavar="SHA", help="revision to record as the target tip")
+    target_tip.set_defaults(func=cmd_target_tip)
 
 
 def add_decision_commands(sub):

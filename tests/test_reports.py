@@ -180,11 +180,11 @@ class StatusAndNextTest(PlanTestCase):
         self.assertEqual(
             view["in_progress"],
             [{"id": "03", "checkpoint": os.path.join(os.path.abspath(self.plan_dir), "checkpoints", "03.md"),
-              "fixed_point": None}],
+              "fixed_point": None, "worktree": None}],
         )
         self.assertEqual(view["blocked"], [{"id": "04", "reason": "needs a decision", "fixed_point": None,
-                                            "checkpoint": None}])
-        self.assertEqual(view["run"], {"target": "main", "target_tip": self.tip, "grant": None})
+                                            "checkpoint": None, "worktree": None}])
+        self.assertEqual(view["run"], {"target": "main", "target_tip": self.tip, "grant": None, "constraints": []})
         self.assertEqual(view["repo"], self.repo)
         self.assertEqual([s["id"] for s in view["slices"]], ["01", "02", "03", "04", "10"])
         self.assertEqual(view["slices"][1]["blocked_by"], [{"id": "01", "supplies": "state model"}])

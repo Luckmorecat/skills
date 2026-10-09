@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PLAN_PATH = os.path.join(REPO_ROOT, "skills", "slice", "bin", "plan")
@@ -57,6 +58,10 @@ class PlanTestCase(unittest.TestCase):
     """Builds a temporary Git repository and plan directory per test."""
 
     def setUp(self):
+        # The plan CLI's own git calls, in process and in subprocesses, must not read the user's Git config.
+        patcher = mock.patch.dict(os.environ, {"GIT_CONFIG_GLOBAL": os.devnull, "GIT_CONFIG_NOSYSTEM": "1"})
+        patcher.start()
+        self.addCleanup(patcher.stop)
         self.tmp = tempfile.mkdtemp(prefix="plan-test-")
         self.addCleanup(shutil.rmtree, self.tmp, True)
         self.repo = os.path.realpath(os.path.join(self.tmp, "repo"))

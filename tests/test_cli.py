@@ -35,12 +35,13 @@ class CommandLineTest(PlanTestCase):
         self.assertEqual(result.returncode, 0)
         lines = [line.strip() for line in result.stdout.splitlines()]
         for command in ("init", "import", "slice", "validate", "status", "next", "start", "block", "resume",
-                        "complete", "decide", "decisions", "grant", "revoke"):
-            self.assertTrue(any(line.startswith(command + " ") for line in lines), command)
+                        "complete", "land", "constrain", "target-tip", "decide", "decisions", "grant", "revoke"):
+            # Python 3.9 puts a long command name on a line of its own, its summary below
+            self.assertTrue(any(line == command or line.startswith(command + " ") for line in lines), command)
         for field in ("schema", "repo", "run.target", "run.target_tip", "slices.<ID>.file",
                       "slices.<ID>.outcome", "slices.<ID>.status", "slices.<ID>.reason", "slices.<ID>.blocked_by",
                       "planning_revision", "slices.<ID>.fixed_point", "slices.<ID>.snapshot", "slices.<ID>.landed",
-                      "run.grant", "decisions.<R>.status", "decisions.<R>.undo_cost", "decisions.<R>.slices",
+                      "run.grant", "run.constraints", "slices.<ID>.worktree", "worktrees/<ID>", "decisions.<R>.status", "decisions.<R>.undo_cost", "decisions.<R>.slices",
                       "decisions.<R>.recorded", "decisions.<R>.updated", "checkpoints/<ID>.md"):
             self.assertTrue(any(line.startswith(field) for line in lines), field)
         self.assertIn("--force --reason", result.stdout)
@@ -55,7 +56,11 @@ class CommandLineTest(PlanTestCase):
             ("validate",): ("--plan", "state.json"),
             ("status",): ("--json", "--plan", "checkpoint"),
             ("next",): ("--limit", "--plan"),
-            ("start",): ("--force", "--reason", "--plan", "fixed point", "checkpoints/<ID>.md"),
+            ("start",): ("--worktree", "--note", "--force", "--reason", "--plan", "fixed point", "checkpoints/<ID>.md",
+                         "STRIKER_ROOT", "plan/<plan directory name>/<ID>"),
+            ("land",): ("--evidence", "--force", "--reason", "--plan", "@FILE", "fast-forward", "Resuming"),
+            ("constrain",): ("--reason", "--force", "--plan", "run.constraints", "plan next"),
+            ("target-tip",): ("--reason", "--force", "--plan", "run.target_tip", "descend"),
             ("block",): ("--force", "--reason", "--plan", "blocked"),
             ("resume",): ("--force", "--reason", "--plan", "in-progress"),
             ("complete",): ("--rev", "--evidence", "--force", "--reason", "--plan", "@FILE", "log.md"),

@@ -204,7 +204,7 @@ class ImportRepositoryFactsTest(ImportCase):
         self.import_plan()
         state = self.state()
         self.assertEqual(state["repo"], self.repo)
-        self.assertEqual(state["run"], {"target": "main", "target_tip": self.rev, "grant": None})
+        self.assertEqual(state["run"], {"target": "main", "target_tip": self.rev, "grant": None, "constraints": []})
         self.assertEqual(state["decisions"], {})
         self.assertEqual(state["planning_revision"], self.rev)
 
