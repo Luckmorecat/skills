@@ -105,9 +105,10 @@ Other files in the plan directory:
                        constraints, target-tip changes, decisions (`R<n>`
                        entries with their prose), grants and revocations, and
                        forced overrides with their reasons.
-  checkpoints/<ID>.md  Checkpoint prose of a started slice, written by
-                       agents; `plan start` creates it, `plan complete` and
-                       `plan land` fold it into log.md and delete it.
+  checkpoints/<ID>.md  Checkpoint prose of a started slice, or of a blocked
+                       slice paused before it started, written by agents;
+                       `plan start` creates it, `plan complete` and `plan land`
+                       fold it into log.md and delete it.
   worktrees/<ID>       A slice's worktree when the plan directory is outside the
                        repository (see `plan start --help`).
   .plan.lock           flock target held by every write.
@@ -998,6 +999,12 @@ def checkpoint_path(plan_dir, sid):
     return os.path.join(plan_dir, CHECKPOINT_DIR, f"{sid}.md")
 
 
+def blocked_checkpoint(plan_dir, sid, fixed_point):
+    """Returns a blocked slice's checkpoint path: always once started, else only when the file exists."""
+    path = checkpoint_path(plan_dir, sid)
+    return path if fixed_point or os.path.isfile(path) else None
+
+
 def status_view(plan_dir, state):
     slices = state["slices"]
     return {
@@ -1013,7 +1020,7 @@ def status_view(plan_dir, state):
         ],
         "blocked": [
             {"id": sid, "reason": slices[sid]["reason"], "fixed_point": slices[sid]["fixed_point"],
-             "checkpoint": checkpoint_path(plan_dir, sid) if slices[sid]["fixed_point"] else None,
+             "checkpoint": blocked_checkpoint(plan_dir, sid, slices[sid]["fixed_point"]),
              "worktree": slices[sid]["worktree"]}
             for sid in sorted_ids(slices) if slices[sid]["status"] == "blocked"
         ],
@@ -1025,6 +1032,15 @@ def worktree_text(tree):
         return ""
     notes = "; notes: " + "; ".join(tree["notes"]) if tree["notes"] else ""
     return f"; worktree {tree['path']} on {tree['branch']} from {tree['base']}{notes}"
+
+
+def blocked_text(row):
+    """Returns a blocked row's text: the reason, then any fixed point, checkpoint, and worktree."""
+    details = [f"fixed point {row['fixed_point']}"] if row["fixed_point"] else []
+    if row["checkpoint"]:
+        details.append(f"checkpoint {row['checkpoint']}")
+    text = "; ".join(details) + worktree_text(row["worktree"])
+    return f"{row['reason']}  ({text.removeprefix('; ')})" if text else row["reason"]
 
 
 def render_status(view):
@@ -1040,9 +1056,7 @@ def render_status(view):
     in_progress = [f"{row['checkpoint']}  (fixed point {row['fixed_point'] or 'not recorded'}"
                    f"{worktree_text(row['worktree'])})"
                    for row in view["in_progress"]]
-    blocked = [row["reason"] + (f"  (fixed point {row['fixed_point']}; checkpoint {row['checkpoint']}"
-                                f"{worktree_text(row['worktree'])})" if row["fixed_point"] else "")
-               for row in view["blocked"]]
+    blocked = [blocked_text(row) for row in view["blocked"]]
     for title, rows, texts in (("In progress", view["in_progress"], in_progress),
                                ("Blocked", view["blocked"], blocked)):
         if not rows:
@@ -2476,12 +2490,14 @@ def build_parser():
         parents=[plan_option()],
         help="show slices, eligible work, in-progress and blocked slices, and run state",
         description="Print the slice table, eligible slices, in-progress slices with their "
-        "checkpoint path and worktree, blocked slices with their reason, and the run state, "
-        "including the autonomy grant and the scheduling constraints.",
+        "checkpoint path and worktree, blocked slices with their reason and any checkpoint path, and the "
+        "run state, including the autonomy grant and the scheduling constraints.",
         epilog="--json prints one object with keys: plan, repo, run (target, target_tip, grant, "
         "constraints), slices (each with id and the state.json slice fields), eligible, in_progress "
         "({id, checkpoint, fixed_point, worktree}), blocked ({id, reason, fixed_point, checkpoint, "
-        "worktree}).",
+        "worktree}). A blocked slice's checkpoint is the path of its checkpoints/<ID>.md, null when it "
+        "has neither a fixed point nor a checkpoints/<ID>.md file; a non-null fixed_point means the "
+        "slice was started.",
     )
     status.add_argument("--json", action="store_true", help="print the view as one JSON object")
     status.set_defaults(func=cmd_status)

@@ -230,6 +230,20 @@ class StartWorktreeTest(ParallelTestCase):
         self.assertEqual(self.slice_("01")["status"], "in-progress")
         self.assertIn("Worktree: ", self.read("log.md").split("slice 01 resumed")[1])
 
+    def test_status_text_names_the_worktree_of_a_blocked_slice_without_fixed_point(self):
+        self.plan("start", "01", "--worktree")
+        self.plan("block", "01", "--reason", "question")
+        self.plan("slice", "edit", "01", "--status", "ready")
+        tree = self.tree("01")
+        place = f"worktree {tree['path']} on {tree['branch']} from {tree['base']}"
+        self.plan("slice", "edit", "01", "--status", "blocked", "--reason", "parked")
+        self.assertIsNone(self.slice_("01")["fixed_point"])
+        os.remove(self.checkpoint("01"))
+        self.assertIn(f"  01  parked  ({place})\n", self.plan("status").out)
+        self.write_checkpoint("01", "Parked.\n")
+        self.assertIn(f"  01  parked  (checkpoint {os.path.abspath(self.checkpoint('01'))}; {place})\n",
+                      self.plan("status").out)
+
     def test_complete_refuses_a_worktree_slice(self):
         self.plan("start", "01", "--worktree")
         result = self.plan_fails("complete", "01", "--rev", self.tip, "--evidence", "ok")

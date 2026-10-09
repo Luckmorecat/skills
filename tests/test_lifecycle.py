@@ -545,6 +545,23 @@ class StatusTest(LifecycleTestCase):
                                                 "worktree": None}])
         self.assertIn(f"01  {checkpoint}  (fixed point {head})", self.plan("status").out)
 
+    def test_status_reports_checkpoint_paths_of_started_slices_after_their_files_are_deleted(self):
+        head = self.head()
+        self.plan("start", "01")
+        self.plan("block", "01", "--reason", "pause")
+        self.plan("start", "03")
+        paths = {sid: os.path.join(os.path.abspath(self.plan_dir), "checkpoints", f"{sid}.md")
+                 for sid in ("01", "03")}
+        for path in paths.values():
+            os.remove(path)
+        view = json.loads(self.plan("status", "--json").out)
+        self.assertEqual([(row["id"], row["checkpoint"]) for row in view["blocked"]], [("01", paths["01"])])
+        self.assertEqual([(row["id"], row["checkpoint"]) for row in view["in_progress"]],
+                         [("03", paths["03"])])
+        out = self.plan("status").out
+        self.assertIn(f"01  pause  (fixed point {head}; checkpoint {paths['01']})", out)
+        self.assertIn(f"03  {paths['03']}  (fixed point {head})", out)
+
 
 if __name__ == "__main__":
     unittest.main()

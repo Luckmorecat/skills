@@ -189,6 +189,34 @@ class StatusAndNextTest(PlanTestCase):
         self.assertEqual([s["id"] for s in view["slices"]], ["01", "02", "03", "04", "10"])
         self.assertEqual(view["slices"][1]["blocked_by"], [{"id": "01", "supplies": "state model"}])
 
+    def checkpoint_of(self, sid):
+        return os.path.join(os.path.abspath(self.plan_dir), "checkpoints", f"{sid}.md")
+
+    def blocked_line(self, sid):
+        lines = self.plan("status").out.splitlines()
+        rows = lines[lines.index("Blocked:") + 1:]
+        return next(line for line in rows if line.startswith(f"  {sid}  "))
+
+    def test_status_names_existing_checkpoint_of_blocked_slice_without_fixed_point(self):
+        os.makedirs(os.path.dirname(self.checkpoint_of("04")), exist_ok=True)
+        with open(self.checkpoint_of("04"), "w") as handle:
+            handle.write("Paused before start.\n- Next action: resume.\n")
+        state_before = self.read("state.json")
+        view = json.loads(self.plan("status", "--json").out)
+        self.assertEqual(view["blocked"], [{"id": "04", "reason": "needs a decision", "fixed_point": None,
+                                            "checkpoint": self.checkpoint_of("04"), "worktree": None}])
+        self.assertEqual(self.blocked_line("04"),
+                         f"  04  needs a decision  (checkpoint {self.checkpoint_of('04')})")
+        self.assertEqual(self.read("state.json"), state_before)
+
+    def test_status_reports_null_checkpoint_of_blocked_slice_without_fixed_point_or_file(self):
+        view = json.loads(self.plan("status", "--json").out)
+        self.assertIsNone(view["blocked"][0]["checkpoint"])
+        self.assertEqual(self.blocked_line("04"), "  04  needs a decision")
+        os.makedirs(self.checkpoint_of("04"))  # a directory is not a checkpoint file
+        self.assertIsNone(json.loads(self.plan("status", "--json").out)["blocked"][0]["checkpoint"])
+        self.assertEqual(self.blocked_line("04"), "  04  needs a decision")
+
     def test_reports_without_state_fail_on_stderr(self):
         os.remove(os.path.join(self.plan_dir, "state.json"))
         result = self.plan_fails("status")

@@ -82,6 +82,12 @@ class CommandLineTest(PlanTestCase):
                 else:
                     self.assertIn(flag, result.stdout, (command, flag))
 
+    def test_status_help_says_when_a_blocked_slice_has_no_checkpoint(self):
+        result = self.run_executable("status", "--help")
+        self.assertEqual(result.returncode, 0)
+        self.assertIn("null when it has neither a fixed point nor a checkpoints/<ID>.md file",
+                      " ".join(result.stdout.split()))
+
     def test_missing_plan_directory_is_reported_without_creating_files(self):
         missing = os.path.join(self.tmp, "missing")
         result = self.run_executable("slice", "add", "01", "--file", "f", "--outcome", "o", "--plan", missing)
