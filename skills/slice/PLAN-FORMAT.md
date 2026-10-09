@@ -10,6 +10,7 @@ Honor a supplied destination. Otherwise create an unused directory under `${STRI
   state.json           run state
   log.md               history
   checkpoints/<ID>.md  a started slice's checkpoint
+  .plan.lock           `plan`'s lock file, which agents leave alone
   worktrees/<ID>/      a slice's worktree from `plan start --worktree` (see `plan start --help`)
 ```
 
@@ -17,7 +18,7 @@ Agents write the prose: `plan.md` outside its status block, the slice files, and
 
 ## plan.md
 
-Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions with their approval or delegation status, with source references when available, including the absolute path of a source contract. Record delegated discretion with its constraints and any precedence rules, so execution settles the choices they cover without asking. When a prototype reference settles the interface or logic, carry its pinned reference and kind, what it settles and leaves open, and its `D<n>` ledger with IDs and status. Record the remote when available and any branch or worktree convention; `plan init` records the repository root, target branch, and planning revision. Separate verified facts from assumptions.
+Keep the shared context self-contained: agreed outcomes, constraints, exclusions, and consequential decisions with their approval or delegation status, with source references when available, including the absolute path of a source contract. Record delegated discretion with its constraints and any precedence rules, so execution settles the choices they cover without asking. When a prototype reference settles the interface or logic, carry its pinned reference and kind, what it settles and leaves open, and its `D<n>` ledger with IDs and status. Record the remote, omitting it when the repository has none, and any branch or worktree convention. `plan init` records the repository root, target branch, and planning revision in `state.json`; `plan status` gives the root and target. The prose names no absolute path of the repository or of anything inside it, and gives paths inside the repository relative to its root. A source contract's absolute path stays. Separate verified facts from assumptions.
 
 The generated status block lists every slice with its file, outcome, dependencies, and status between its `plan:status` markers. Leave the block and its markers to `plan`. IDs remain stable; dependencies determine execution order. Name the behavior or evidence each dependency supplies. `plan` refuses missing dependencies and cycles, and `plan validate` checks the whole plan; check that every agreed outcome is covered.
 
@@ -45,11 +46,11 @@ Include slice-specific constraints and exclusions where needed. A `## Notes` sec
 
 ## checkpoints/<ID>.md
 
-The checkpoint of a started slice, kept by the skill executing it. `plan start` creates it when missing; a reconciler or the record of a paused slice's next action may write it earlier. `plan complete` and `plan land` fold it into `log.md` with the slice's evidence and delete it.
+The checkpoint of a started slice, kept by the skill executing it. `plan start` creates it when missing; a reconciler or the record of a paused slice's next action may write it earlier, and `plan status` names it for a blocked slice paused before it started once the file exists. `plan complete` and `plan land` fold it into `log.md` with the slice's evidence and delete it.
 
 ## log.md
 
-History only, appended by `plan`: a dated entry for each lifecycle transition (start, block, resume, complete, land), import, decision, grant, constraint, target-tip change, forced override, and slice change given `--note`, holding the prose passed to it, such as a slice's evidence and folded checkpoint, a decision's body, or the note. `plan init` and a `plan slice add|edit` without `--note` log nothing.
+History only, appended by `plan`: a dated entry for each lifecycle transition (start, block, resume, complete, land), import, decision, grant, constraint, target-tip change, forced override, and slice change given `--note`, holding the prose passed to it, such as a slice's evidence and folded checkpoint, a decision's body, or the note. `plan init` and a `plan slice add|edit` without `--note` log nothing. A change to `plan.md`'s prose alone, such as an amended decision, is logged by the `plan decide` entry of the decision that approves it: a run's reconciler's, or, when `slice` is invoked directly and no decision entry records it, `slice`'s own (see [SKILL.md](SKILL.md)); never by the `--note` of a slice it does not touch. A factual pointer correction reaches `log.md` through the checkpoint of the slice that found it, which `plan complete` or `plan land` folds in.
 
 ## Plans in the previous format
 

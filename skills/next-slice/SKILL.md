@@ -18,7 +18,7 @@ Read the run state with `plan status` and the shared context in `plan.md`. Inter
 
 Check that the checkout is the run state's repository on its target branch, or the worktree branch your caller supplied; resolve an unexplained mismatch before editing.
 
-Start a new slice in the repository checkout with `plan start <ID>`; it records the fixed point and dirty snapshot and creates the checkpoint `checkpoints/<ID>.md`. Run the cheapest relevant baseline check; distinguish existing failures from regressions.
+Start a new slice in the repository checkout with `plan start <ID>`; it records the fixed point and dirty snapshot and creates the checkpoint `checkpoints/<ID>.md`, keeping one already written for a slice paused before it started, whose next action guides the new slice (`plan status` names that file while the slice is blocked). Run the cheapest relevant baseline check; distinguish existing failures from regressions.
 
 ## 2. Implement
 
@@ -30,13 +30,13 @@ Correct stale code pointers and record discoveries in the checkpoint as they occ
 
 Demonstrate the slice's acceptance using the specified verification and current repository checks, exercising the API or UI when needed. Run any assigned integration checks across completed slices.
 
-Invoke `code-review` when available with the original fixed point, dirty snapshot (`plan status --json`), later unrelated changes to exclude, slice, shared agreed outcomes, constraints and exclusions, relevant decisions, and verification evidence. Otherwise review standards and contract compliance separately. Fix blocking findings and rerun affected checks. For an experiment without code changes, assess its findings against its question and criteria instead of invoking a diff review.
+Invoke `code-review` when available with the original fixed point, dirty snapshot (`plan status --json`), later unrelated changes to exclude, slice, shared agreed outcomes, constraints and exclusions, relevant decisions, and verification evidence. Otherwise review standards and contract compliance separately. Wait for every reviewer's report before going on. When you cannot dispatch reviewers yourself, return their assignments with their context to your caller as a request; the slice stays in progress while its review is pending. Fix blocking findings and rerun affected checks. For an experiment without code changes, assess its findings against its question and criteria instead of invoking a diff review.
 
 ## 4. Commit and checkpoint
 
-Keep `checkpoints/<ID>.md` current: owned changes, verification/review evidence, deviations, stale-pointer corrections, and the next action, recorded before committing. Correct stale factual pointers in the plan's prose and slice files. Add each downstream finding to the file of the slice it affects under `## Notes`, naming this slice; hand one that would change that slice's scope or acceptance to `slice` instead.
+Keep `checkpoints/<ID>.md` current: owned changes, verification/review evidence, deviations, stale-pointer corrections, and the next action, recorded before committing. Correct stale factual pointers in `plan.md`'s prose outside its status block and in slice files; when your caller limits your plan-directory writes, list them in the checkpoint for your caller instead. Add each downstream finding to the file of the slice it affects under `## Notes`, naming this slice; hand one that would change that slice's scope or acceptance to `slice` instead.
 
-Commit only this slice's verified work. With no blocking findings, run `plan complete <ID> --rev <sha> --evidence <text|@file>`, repeating `--rev` for every commit the slice landed and summarizing the acceptance evidence and review outcome; it folds the checkpoint into `log.md`. A no-code experiment passes its unchanged fixed point as `--rev` and its result as evidence.
+Commit only this slice's verified work. Then, with no blocking findings, replace the checkpoint's next action with the landed revisions, so the checkpoint folded into `log.md` names no pending step, and run `plan complete <ID> --rev <sha> --evidence <text|@file>`, repeating `--rev` for every commit the slice landed and summarizing the acceptance evidence and review outcome; it folds the checkpoint into `log.md`. A no-code experiment passes its unchanged fixed point as `--rev` and its result as evidence.
 
 On a blocker or interruption, run `plan block <ID> --reason <what resolves it>`, leaving the checkpoint and owned changes in place.
 
