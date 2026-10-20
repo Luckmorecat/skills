@@ -6,7 +6,9 @@ When given a worktree, confirm you are in it before editing, and bootstrap it (f
 
 Honour the run decisions you are given. Green means checks pass, acceptance is demonstrated, and constraints hold. Leave the paths in any dirty snapshot alone.
 
-Before editing, run the cheapest relevant check as a baseline. Work test-first at the test boundaries the work names, using `tdd` when available. Run the full relevant suite at the end; exercise the API or UI when needed to prove acceptance.
+Before editing, run the cheapest relevant check as a baseline. Work test-first at the test boundaries the work names, using `tdd` when available. Run the full relevant suite at the end; exercise the API or UI when needed to prove acceptance, and stop once it is demonstrated. When a failing tool leaves acceptance that no other check proves, report it as a blocker.
+
+Bring into context only what the next decision needs: targeted searches and line ranges, and test, build, and browser output saved to log files outside the repository with only the status and failures read back. Cite the log paths as evidence.
 
 Settle each discovery before building on it. Correct internal implementation choices within approved constraints. Report a discrepancy where the work would depart from what the brief's sources of truth settle. Report a question where ambiguity changes the outcome, or before changing approved behaviour, public contracts, persistent data, security or privacy, deployment, external services, ongoing cost, or anything expensive to reverse. For either, stop and return it to the orchestrator instead of asking the user, and say whether your partial changes can stay in the tree while other chunks proceed.
 
