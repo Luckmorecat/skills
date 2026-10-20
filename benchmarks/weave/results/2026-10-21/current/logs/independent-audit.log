@@ -1,0 +1,11 @@
+test_cli (__main__.Acceptance.test_cli) ... ok
+test_dirty_snapshot_preserved (__main__.Acceptance.test_dirty_snapshot_preserved) ... ok
+test_invalid_roots (__main__.Acceptance.test_invalid_roots) ... ok
+test_recursive_delete_replace_and_detach (__main__.Acceptance.test_recursive_delete_replace_and_detach) ... ok
+test_replacement_transitions (__main__.Acceptance.test_replacement_transitions) ... ok
+test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) ... ok
+
+----------------------------------------------------------------------
+Ran 6 tests in 0.203s
+
+OK

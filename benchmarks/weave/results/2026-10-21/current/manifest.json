@@ -1,0 +1,7 @@
+{
+  "arm": "current",
+  "instruction_ref": "df3ac191f6cbb5f5eb389f6885283b5a956194d3",
+  "fixture_sha256": "acab7e06448c4cde7ab1f878ca745ac075006db1f00d3117d2591760635c80bb",
+  "actual_input_tokens": null,
+  "actual_output_tokens": null
+}

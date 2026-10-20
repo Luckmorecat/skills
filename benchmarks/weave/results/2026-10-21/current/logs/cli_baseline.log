@@ -1,0 +1,6 @@
+test_base_only (tests.test_cli.CliTests.test_base_only) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 0.021s
+
+OK

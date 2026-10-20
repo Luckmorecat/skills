@@ -1,0 +1,2 @@
+# Raw command output and patches retain exact bytes for evidence hashes.
+results/** -whitespace
