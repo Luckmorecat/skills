@@ -1,0 +1,24 @@
+{
+  "review_only": true,
+  "findings": {
+    "blocking": 1,
+    "advisory": 0
+  },
+  "acceptance_holds": false,
+  "verification_processes": 1,
+  "verification_log": "/tmp/weave-probe-baseline/logs/compliance-invalid-json.log",
+  "reviewer_counts": {
+    "nested_tools": 4,
+    "functions_exec": 3,
+    "collaboration": 0
+  },
+  "orchestrator_counts": {
+    "nested_tools": 1,
+    "functions_exec": 1,
+    "collaboration": 2
+  },
+  "missing_context_incidents": [],
+  "repeated_work": [],
+  "blockers": [],
+  "edits_or_repairs": false
+}

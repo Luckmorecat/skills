@@ -1,0 +1,221 @@
+test_base_only (tests.test_cli.CliTests.test_base_only) ... ok
+test_invalid_argument_count (tests.test_cli.CliTests.test_invalid_argument_count) ... 
+  test_invalid_argument_count (tests.test_cli.CliTests.test_invalid_argument_count) (paths=()) ... FAIL
+  test_invalid_argument_count (tests.test_cli.CliTests.test_invalid_argument_count) (paths=('a', 'b', 'c')) ... FAIL
+test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) ... 
+  test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp1lx9cr56/invalid.json',)) ... FAIL
+  test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp1lx9cr56/valid.json', '/tmp/tmp1lx9cr56/invalid.json')) ... FAIL
+test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) ... 
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='[]', paths=('/tmp/tmpom0b2aj2/invalid.json',)) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='[]', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json')) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='null', paths=('/tmp/tmpom0b2aj2/invalid.json',)) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='null', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json')) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='1', paths=('/tmp/tmpom0b2aj2/invalid.json',)) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='1', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json')) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='"text"', paths=('/tmp/tmpom0b2aj2/invalid.json',)) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='"text"', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json')) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='true', paths=('/tmp/tmpom0b2aj2/invalid.json',)) ... FAIL
+  test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='true', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json')) ... FAIL
+test_layered_merge (tests.test_cli.CliTests.test_layered_merge) ... ok
+test_reserved_keys_in_either_file (tests.test_cli.CliTests.test_reserved_keys_in_either_file) ... 
+  test_reserved_keys_in_either_file (tests.test_cli.CliTests.test_reserved_keys_in_either_file) (paths=('/tmp/tmpnpr8tenx/invalid.json',)) ... FAIL
+  test_reserved_keys_in_either_file (tests.test_cli.CliTests.test_reserved_keys_in_either_file) (paths=('/tmp/tmpnpr8tenx/valid.json', '/tmp/tmpnpr8tenx/invalid.json')) ... FAIL
+test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) ... 
+  test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu/missing.json',)) ... FAIL
+  test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu/valid.json', '/tmp/tmpn8rzibdu/missing.json')) ... FAIL
+  test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu',)) ... FAIL
+
+======================================================================
+FAIL: test_invalid_argument_count (tests.test_cli.CliTests.test_invalid_argument_count) (paths=())
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 80, in test_invalid_argument_count
+    self.assert_error(self.run_cli(*paths), 'Usage:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 1 != 2
+
+======================================================================
+FAIL: test_invalid_argument_count (tests.test_cli.CliTests.test_invalid_argument_count) (paths=('a', 'b', 'c'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 80, in test_invalid_argument_count
+    self.assert_error(self.run_cli(*paths), 'Usage:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp1lx9cr56/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 53, in test_invalid_json_in_either_file
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp1lx9cr56/valid.json', '/tmp/tmp1lx9cr56/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 53, in test_invalid_json_in_either_file
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='[]', paths=('/tmp/tmpom0b2aj2/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='[]', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='null', paths=('/tmp/tmpom0b2aj2/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='null', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='1', paths=('/tmp/tmpom0b2aj2/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='1', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='"text"', paths=('/tmp/tmpom0b2aj2/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='"text"', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='true', paths=('/tmp/tmpom0b2aj2/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_root_in_either_file (tests.test_cli.CliTests.test_invalid_root_in_either_file) (value='true', paths=('/tmp/tmpom0b2aj2/valid.json', '/tmp/tmpom0b2aj2/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 61, in test_invalid_root_in_either_file
+    self.assert_error(self.run_cli(*paths), 'roots')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_reserved_keys_in_either_file (tests.test_cli.CliTests.test_reserved_keys_in_either_file) (paths=('/tmp/tmpnpr8tenx/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 68, in test_reserved_keys_in_either_file
+    self.assert_error(self.run_cli(*paths), 'reserved')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_reserved_keys_in_either_file (tests.test_cli.CliTests.test_reserved_keys_in_either_file) (paths=('/tmp/tmpnpr8tenx/valid.json', '/tmp/tmpnpr8tenx/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 68, in test_reserved_keys_in_either_file
+    self.assert_error(self.run_cli(*paths), 'reserved')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu/missing.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 75, in test_unreadable_file_in_either_position
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu/valid.json', '/tmp/tmpn8rzibdu/missing.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 75, in test_unreadable_file_in_either_position
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_file_in_either_position (tests.test_cli.CliTests.test_unreadable_file_in_either_position) (paths=('/tmp/tmpn8rzibdu',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 75, in test_unreadable_file_in_either_position
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-ab-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.436s
+
+FAILED (failures=19)

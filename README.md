@@ -126,3 +126,10 @@ Skill bodies name other skills in plain backticks rather than with a `$` or `/` 
 ## Repository layout
 
 Each distributable skill lives under `skills/<name>/`. Supporting references and agent metadata stay in the same skill directory so `npx skills` installs the complete package.
+
+## Benchmarks
+
+[Weave context-policy benchmark](benchmarks/weave/README.md) provides reproducible
+coding fixtures, process and provider-usage instrumentation, and review/recovery
+probes. The [initial pilot report](benchmarks/weave/REPORT.md) distinguishes
+observed task outcomes from unavailable token-efficiency measurements.
