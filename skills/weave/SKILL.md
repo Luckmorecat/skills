@@ -38,7 +38,7 @@ Give each worker the paths of any supplied documents, any dirty snapshot, and, w
 
 ## 5. Review and commit
 
-Review always runs in subagents. Dispatch a reviewer with the round's fixed point, any dirty snapshot, and verification evidence. Where subagents cannot dispatch their own, dispatch `code-review`'s Standards and Plan compliance axes as two reviewers yourself, each following `code-review/SKILL.md` for its axis alone, and combine their findings. Route blocking findings to the worker that last touched the code.
+Review always runs in subagents. Once the round's workers have returned their final reports, dispatch a reviewer with the round's fixed point, any dirty snapshot, and the reports' verification evidence. Where subagents cannot dispatch their own, dispatch `code-review`'s Standards and Plan compliance axes as two reviewers yourself, each following `code-review/SKILL.md` for its axis alone, and combine their findings. Route blocking findings to the worker that last touched the code.
 
 Once no blocking findings remain, dispatch a committer with the round's fixed point, any dirty snapshot, the commit-message notes workers reported, and the round's run decisions for the message.
 
@@ -52,7 +52,7 @@ Finish once acceptance holds at the final commit, the last reconciler check, if 
 
 Every subagent gets the brief, the run decisions affecting its work, and the absolute path of its role file, instructed to read and follow it: [PLANNER.md](PLANNER.md) for planners, [RECONCILER.md](RECONCILER.md) for reconcilers, [WORKER.md](WORKER.md) for workers, and the sibling `code-review/SKILL.md` or `commit/SKILL.md` for review and commit. Each step names only what its dispatch adds to these.
 
-To **dispatch** is to start a fresh subagent: one per chunk, and a new planner, reconciler, reviewer, or committer each time a step calls for one. Continue an existing worker only to resume it when paused, to fix findings in code it last touched, or to repair or rework its chunk; when it is unavailable, dispatch a fresh one with its report.
+To **dispatch** is to start a fresh subagent, without this conversation's history where the runtime allows, so the handoff is its whole context: one per chunk, and a new planner, reconciler, reviewer, or committer each time a step calls for one. Continue an existing worker only to resume it when paused, to fix findings in code it last touched, or to repair or rework its chunk; when it is unavailable, dispatch a fresh one with its report.
 
 ## Questions and updates
 
