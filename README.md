@@ -1,6 +1,6 @@
 # Striker skills
 
-Fifteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, implementing work, delivering one green slice at a time or several in parallel, handing settled work to subagents, reviewing and committing changes, and stripping comments from them, plus one for explaining a topic visually.
+Workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, implementing work, delivering one green slice at a time or several in parallel, handing settled work to subagents, assessing unit tests, reviewing and committing changes, and stripping comments from them, plus one for explaining a topic visually.
 
 ## Skills
 
@@ -13,6 +13,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `adopt` | Adopt a chosen UI or logic prototype by reconciling it with current use cases. |
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
 | `implement` | Implement requested work and verify it green, leaving it uncommitted. |
+| `mewto` | Assess and harden unit tests with mutation evidence, preserving protection when removing weak tests. |
 | `land` | Implement requested work, review it, and commit it green. |
 | `weave` | Land work settled in the current session through subagents. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
@@ -31,6 +32,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
 | A change you want to review or commit yourself | `implement` |
+| Unit tests were written or changed, or a function/module needs its tests assessed | `mewto` automatically for changed tests, or invoke it with a scope |
 | A small change settled in the current session, with context to preserve | `weave` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
@@ -47,6 +49,8 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
 `implement` builds and verifies the requested work green, then stops with changed paths, evidence, and blockers, leaving the changes uncommitted. `land` takes the same steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take them from its `WORKER.md`. Each skill carries its own copy so it installs on its own; change the three together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
+
+`mewto` assesses new, changed, or selected unit tests, preferably through a fresh subagent. It uses existing mutation tooling or targeted mutations, strengthens tests for meaningful gaps, and removes weak tests only while preserving behavior protection. The pass stays focused and reports survivors and assessment gaps without chasing a score.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and subagent discovery to resolve consequential choices. It finishes with a brief conversational recap of settled decisions and remaining uncertainties. The user chooses what happens next.
 
@@ -92,7 +96,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all sixteen globally for Codex:
+Install all seventeen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -111,7 +115,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all sixteen globally for Claude Code:
+Install all seventeen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
