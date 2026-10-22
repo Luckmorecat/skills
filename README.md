@@ -50,7 +50,7 @@ Workflow skills for shaping an idea, resolving design decisions, auditing usabil
 
 `implement` builds and verifies the requested work green, then stops with changed paths, evidence, and blockers, leaving the changes uncommitted. `land` takes the same steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take them from its `WORKER.md`. Each skill carries its own copy so it installs on its own; change the three together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
 
-`mewto` assesses new, changed, or selected unit tests, preferably through a fresh subagent. It uses existing mutation tooling or targeted mutations, strengthens tests for meaningful gaps, and removes weak tests only while preserving behavior protection. The pass stays focused and reports survivors and assessment gaps without chasing a score.
+`mewto` assesses new, changed, or selected unit tests. It uses existing mutation tooling or targeted mutations, strengthens tests for meaningful gaps, and removes weak tests only while preserving behavior protection. The pass stays focused and reports survivors and assessment gaps without chasing a score.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and subagent discovery to resolve consequential choices. It finishes with a brief conversational recap of settled decisions and remaining uncertainties. The user chooses what happens next.
 

@@ -7,15 +7,13 @@ description: Assess and harden unit tests with mutation testing after writing or
 
 Judge tests by the required behavior they protect, without a mutation-score target.
 
-Prefer a fresh subagent for the pass. Give it this skill, the exact scope, the intended behavior and its sources, and the current code including uncommitted changes. The worker performs the pass itself rather than delegating it again. Use an isolated copy or pause other writers while mutations are active. Without subagents, perform the pass directly.
-
 ## 1. Scope and baseline
 
 Use the selected function/module or the production code exercised by selected tests; otherwise use the current task's production and test changes. Include existing unit tests that exercise the affected behavior. Resolve the scope to concrete production paths and test commands; if no bounded scope is identifiable, obtain one before mutating.
 
 Establish intended behavior from requirements, contracts, and calling code. Flag conflicting or missing intent; assess the unambiguous behavior without turning the current implementation into a requirement.
 
-Establish a passing baseline with the same test selection and execution environment used for mutation checks, including the mutation harness when using tooling ([baseline caveats](https://pitest.org/faq/)). Confirm that the intended tests are discovered and exercise the intended production code. A failing or unavailable baseline blocks conclusions for the affected tests; report the blocker. Preserve the starting production content so temporary edits can be reversed without losing existing work.
+Establish a passing baseline with the same test selection and execution environment used for mutation checks, including the mutation harness when using tooling ([baseline caveats](https://pitest.org/faq/)). Confirm that the intended tests are discovered and exercise the intended production code. A failing or unavailable baseline blocks conclusions for the affected tests; report the blocker. Preserve the starting production content so temporary edits can be reversed without losing existing work. Isolate temporary mutations from concurrent edits.
 
 ## 2. Challenge the behavior
 
@@ -39,6 +37,6 @@ After strengthening a test, verify that it passes against the unmutated code and
 
 ## 4. Finish
 
-Restore all temporary mutations, verify that production content matches the starting content, and run the relevant tests with the final test changes. An isolated worker returns test edits and evidence for integration. Reconcile changes since its snapshot when applying those edits; rerun affected mutation checks if the assessed code changed, then run the relevant tests on the integrated result.
+Restore all temporary mutations, verify that production content matches the starting content, and run the relevant tests with the final test changes. If the assessed code changes afterward, rerun affected mutation checks and relevant tests before relying on the results.
 
 Report scope and method, the behaviors challenged and their outcomes, tests strengthened or removed with the retained protection, verification results, and explained survivors or remaining gaps. Describe the limits of both targeted checks and bounded tool runs; conclusions apply to the faults actually assessed. Completion requires restored production code and passing final tests; otherwise report the incomplete work and blocker.
