@@ -22,6 +22,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `commit` | Group changes into semantic commits and create them. |
 | `no-comments` | Delete comments from a change through an isolated subagent and report refactor targets. Manual invocation only. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
+| `sol-loop` | Review a change with GPT Sol through the Codex CLI, fixing findings in rounds until it approves. |
 
 ## Workflow
 
@@ -43,6 +44,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | A worktree of changes needs to land as commits | `commit` |
 | Comments narrate a change or excuse workarounds | `no-comments`, then `design` or `land` for its open flags |
 | A discussion needs a picture | `show-me` |
+| A change needs a second model's review before a PR | `sol-loop` |
 
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
@@ -68,6 +70,8 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `no-comments` sends a fresh subagent to delete comments from the named files or the current diff, keeping only license headers, tool directives, public API docs, constraints imposed by code we cannot change, and a few suppressions. A comment excusing a surprise in our own code dies, and its symbol is flagged `MUST KILL` with the reshape that would make it obvious. The skill audits the sweep, restores deletions that meet an exception, fixes trivial flags, and reports the rest for `design` or `land` without refactoring further. Adapted from Comment Sicko in [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT, © 2026 Lauren Tan).
 
+`sol-loop` sends the change to GPT Sol through `codex exec` in a read-only sandbox and resumes the same Codex thread for later rounds, keeping a ledger of findings, outcomes, and usage. It answers each finding with the smallest fix or evidence-backed pushback, stops at approval or after three rounds (five for security or data-loss risks), and never pushes unless asked. Adapted from sol-loop in [tstack](https://github.com/t3dotgg/tstack/tree/main/skills/sol-loop) (MIT, © 2026 Theo Browne), with the T3 orchestrator route replaced by the Codex CLI.
+
 ## Where plans live
 
 Contracts and slice plans live outside the repository. `define` presents its recap in the conversation. Saved contracts and plans use this storage root:
@@ -92,7 +96,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all sixteen globally for Codex:
+Install all seventeen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -111,7 +115,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all sixteen globally for Claude Code:
+Install all seventeen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
