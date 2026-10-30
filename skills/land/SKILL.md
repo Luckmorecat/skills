@@ -1,7 +1,6 @@
 ---
 name: land
-description: Implement requested work, verify and review it, then commit it green.
-disable-model-invocation: true
+description: Use when the user says "land" (e.g. "land this", "land it").
 ---
 
 Implement the work the user requests, using any supplied plan, spec, ticket, or acceptance criteria.

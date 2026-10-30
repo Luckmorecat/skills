@@ -1,5 +1,4 @@
 interface:
   display_name: "Land"
   short_description: "Implement requested work and commit it green"
-policy:
-  allow_implicit_invocation: false
+  default_prompt: "Use $land to implement, verify, and commit the requested work."
