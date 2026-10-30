@@ -27,7 +27,7 @@ A caller-supplied scope arrived approved; go straight to execution. A worktree s
 
 ## Execution
 
-For each commit, stage exact paths with `git add -- <paths>`, read `git diff --cached`, and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Commit the approved message verbatim, then continue straight to the next commit, since the approval covered all of them. A git or hook failure stops the run.
+For each commit, take its paths from a fresh `git status --porcelain`, both sides of a rename and every deletion included, and stage them with `git add -A -- <paths>`. Then read `git diff --cached`, and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Commit the approved message verbatim, then continue straight to the next commit, since the approval covered all of them. A git or hook failure stops the run.
 
 ## Report
 
