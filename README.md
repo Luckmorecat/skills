@@ -1,6 +1,6 @@
 # Striker skills
 
-Fifteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, implementing work, delivering one green slice at a time or several in parallel, handing settled work to subagents, reviewing and committing changes, and stripping comments from them, plus one for explaining a topic visually.
+Workflow skills for shaping, designing, implementing, and reviewing work, plus tools for explaining ideas visually and maintaining repository instructions.
 
 ## Skills
 
@@ -23,6 +23,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `no-comments` | Delete comments from a change through an isolated subagent and report refactor targets. Manual invocation only. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
 | `sol-loop` | Review a change with GPT Sol through the Codex CLI, fixing findings in rounds until it approves. |
+| `agents-md` | Create, audit, or simplify repository instructions using repository evidence and bounded research findings. |
 
 ## Workflow
 
@@ -45,6 +46,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | Comments narrate a change or excuse workarounds | `no-comments`, then `design` or `land` for its open flags |
 | A discussion needs a picture | `show-me` |
 | A change needs a second model's review before a PR | `sol-loop` |
+| Repository instructions need creation, review, or simplification | `agents-md` |
 
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
@@ -96,7 +98,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all seventeen globally for Codex:
+Install all eighteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -115,7 +117,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all seventeen globally for Claude Code:
+Install all eighteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
