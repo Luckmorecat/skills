@@ -1,55 +1,47 @@
 ---
 name: agents-md
-description:
-  Create, audit, or simplify repository AGENTS.md instructions using repository
-  evidence and bounded empirical findings.
+description: Create, audit, or simplify AGENTS.md when repository instructions need writing, review, or a fix for recurring agent mistakes.
 ---
 
 # AGENTS.md
 
-Improve repository instructions for a concrete task or recurring failure. Keep
-only guidance that changes an agent's decisions; no change is a valid outcome.
+Make repository instructions useful for the requested work. No change is a valid
+outcome; neither brevity nor a particular file layout proves effectiveness.
 
-## Inspect
+## Establish scope
 
-- Read the applicable instruction hierarchy, linked skills, and authoritative
-  commands or configuration. Check the target harness's discovery behavior
-  before relying on nested files.
-- Identify the requested behavior or observed failure. Separate explicit user
-  requirements from assumptions and optional recommendations.
-- Read [the evidence summary](references/evidence.md) when justifying a practice
-  or planning an evaluation. Do not present shorter files, nesting, or more
-  comprehensive templates as proven performance improvements.
+- Audit/review means inspect and propose, without editing. Create/update means
+  edit the requested files. Ask only when intent or a consequential choice is
+  unresolved; publishing is a separate action.
+- Start with the relevant instruction chain, linked procedures, and configuration
+  for the task or reported failure. Expand inspection only to resolve a specific
+  gap; do not inventory the whole repository by default.
+- Identify the target agent's discovery and inheritance rules before placing
+  instructions in nested files. Separate user requirements from recommendations.
 
-## Edit
+## Write or assess
 
-- Preserve required constraints. Remove stale or contradictory instructions only
-  after checking their source; do not discard an unusual rule merely for
-  brevity.
-- Write concrete triggers and actions. Keep repository-wide rules at the root;
-  scope local rules to the directories where the harness will apply them.
-- Link reusable procedures with a clear trigger instead of copying them. Verify
-  paths and commands. Avoid restating discoverable repository structure or rules
-  already enforced by tooling unless they address a demonstrated problem.
-- Keep task plans, incident history, and research discussion outside
-  always-loaded instructions. Do not impose a universal line limit or fill a
-  template for its own sake.
-- Make the smallest useful change. Do not rewrite unrelated skills, install
-  tooling, change permissions, or publish changes without authorization.
+- Preserve required constraints, including unusual ones. Verify suspected stale
+  rules against their source; ask about unresolved conflicts instead of silently
+  discarding either requirement.
+- Give each instruction a concrete trigger and action. Keep shared rules at the
+  root and local rules in their applicable scope, without duplicating them.
+- Link existing procedures with a clear trigger rather than copying their body.
+  Check that links, commands, and required tools are valid in this repository.
+- Include non-obvious decisions and demonstrated failure prevention, not a tour
+  of discoverable code. Keep research, task history, and temporary plans outside
+  always-loaded instructions. Do not fill a template or impose a line limit.
+- Make the smallest useful change; leave unrelated skills and configuration alone.
 
-## Verify
+## Verify and report
 
-Check instruction scope, conflicts, reference targets, and command accuracy.
-Report which requirements the diff preserves and what behavior it changes.
+Check the diff against required constraints, applicable scopes, reference targets,
+and authoritative commands. For changed behavior, walk through a representative
+request and an important boundary case. Do not execute destructive or external
+actions just to test their instructions.
 
-For a performance claim, compare the baseline and candidate on representative
-held-out tasks with the same repository snapshot, harness/model, permissions,
-and budget. Use fresh isolated sessions, repeat trials when practical, and score
-correctness, instruction adherence, and cost/time separately. Keep validation
-criteria fixed before seeing results; do not expose expected answers to agents.
-Do not weaken required safeguards in a comparison. Without such an evaluation,
-report a design assessment, not a demonstrated improvement. A few smoke tests
-provide preliminary evidence only.
-
-Return the concise diff or proposed text, checks performed, and remaining
-limits.
+Report edits or proposals, checks actually performed, and remaining uncertainty.
+A static review or smoke test is not proof of improved agent performance. When
+that claim matters, compare baseline and candidate on fixed representative tasks
+in fresh sessions with the same model, tools, permissions, and budget; score task
+correctness, adherence, and cost separately. Preserve safeguards in both arms.

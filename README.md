@@ -23,7 +23,8 @@ Workflow skills for shaping, designing, implementing, and reviewing work, plus t
 | `no-comments` | Delete comments from a change through an isolated subagent and report refactor targets. Manual invocation only. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
 | `sol-loop` | Review a change with GPT Sol through the Codex CLI, fixing findings in rounds until it approves. |
-| `agents-md` | Create, audit, or simplify repository instructions using repository evidence and bounded research findings. |
+| `agents-md` | Create, audit, or simplify repository instructions with scoped, verifiable rules. |
+| `skill-design` | Create, revise, and behaviorally evaluate focused reusable agent skills. |
 
 ## Workflow
 
@@ -47,6 +48,7 @@ Workflow skills for shaping, designing, implementing, and reviewing work, plus t
 | A discussion needs a picture | `show-me` |
 | A change needs a second model's review before a PR | `sol-loop` |
 | Repository instructions need creation, review, or simplification | `agents-md` |
+| A reusable skill needs writing, refinement, or evaluation | `skill-design` |
 
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
@@ -98,7 +100,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all eighteen globally for Codex:
+Install all nineteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -117,7 +119,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all eighteen globally for Claude Code:
+Install all nineteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
