@@ -27,7 +27,7 @@ Choose commit boundaries, order, messages, and exact paths or hunks from the ins
 
 ## Execution
 
-For each commit, stage exact paths with `git add -- <paths>`, read `git diff --cached`, and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Preserve unrelated working-tree changes and leave excluded staged changes available but out of these commits. Commit the chosen message, inspect the resulting commit, and continue to the next group. A git or hook failure stops the run: inspect whether a commit was created before retrying, and do not bypass hooks. Do not amend, rewrite history, or push unless requested.
+For each commit, take its paths from a fresh `git status --porcelain`, including both sides of renames and deletions, and stage them with `git add -A -- <paths>`. Read `git diff --cached` and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Preserve unrelated working-tree changes and leave excluded staged changes available but out of these commits. Commit the chosen message, inspect the resulting commit, and continue to the next group. A git or hook failure stops the run: inspect whether a commit was created before retrying, and do not bypass hooks. Do not amend, rewrite history, or push unless requested.
 
 ## Report
 
