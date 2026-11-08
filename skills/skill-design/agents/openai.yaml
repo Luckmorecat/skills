@@ -1,3 +1,5 @@
 interface:
   display_name: "Skill design"
   short_description: "Create and evaluate focused reusable agent skills"
+policy:
+  allow_implicit_invocation: false

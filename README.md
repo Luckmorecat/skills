@@ -23,8 +23,8 @@ Workflow skills for shaping, designing, implementing, and reviewing work, plus t
 | `no-comments` | Delete comments from a change through an isolated subagent and report refactor targets. Manual invocation only. |
 | `show-me` | Explain the current topic visually with diagrams, code-shape sketches, or an HTML artifact. Manual invocation only. |
 | `sol-loop` | Review a change with GPT Sol through the Codex CLI, fixing findings in rounds until it approves. |
-| `agents-md` | Create, audit, or simplify repository instructions with scoped, verifiable rules. |
-| `skill-design` | Create, revise, and behaviorally evaluate focused reusable agent skills. |
+| `agents-md` | Create, audit, or simplify repository instructions with scoped, verifiable rules. Manual invocation only. |
+| `skill-design` | Create, revise, and behaviorally evaluate focused reusable agent skills. Manual invocation only. |
 
 ## Workflow
 

@@ -1,6 +1,7 @@
 ---
 name: agents-md
 description: Create, audit, or simplify AGENTS.md when repository instructions need writing, review, or a fix for recurring agent mistakes.
+disable-model-invocation: true
 ---
 
 # AGENTS.md

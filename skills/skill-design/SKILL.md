@@ -1,6 +1,7 @@
 ---
 name: skill-design
 description: Create, revise, or evaluate reusable agent skills when a workflow needs packaging or an existing skill misroutes or produces poor results. Not for ordinary task execution or repository AGENTS.md rules.
+disable-model-invocation: true
 ---
 
 # Skill design
