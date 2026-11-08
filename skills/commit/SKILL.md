@@ -1,17 +1,17 @@
 ---
 name: commit
-description: Group changes into semantic commits and create them. Use when the user asks to commit, with or without a ticket ID, or when a skill hands over a verified tree.
+description: Use when committing changes requested by the user or handed over by an authorized workflow. Group the intended changes into semantic commits and create them without a separate plan-approval step.
 ---
 
 Every commit carries one piece of work, named for the work rather than the files.
 
 ## Scope
 
-With a caller, the scope is the diff since the fixed point they supplied, excluding the paths in the dirty snapshot they handed over. That tree arrived green and reviewed, so skip verification. Without a caller, the scope is the whole worktree. Treat existing staging as a hint about intent, not as a commit boundary.
+Use the user's requested scope. With a caller, use the diff since their fixed point, excluding paths in their dirty snapshot. Reuse supplied verification and review evidence while it still matches the changes; do not assume a handoff is green. For a direct request without a narrower scope, inspect the whole worktree. Treat existing staging as a hint about intent, not as a commit boundary. Ask only when ownership or intended scope cannot be resolved; skill selection alone does not authorize a commit.
 
 ## Hazards
 
-Whatever the scope, set aside anything the user would want to see before it lands: secrets, build output, unexpected binaries, mass deletions, a file whose purpose you cannot establish. Name each one in the report. A hazard comes back in only when the user names its path specifically; plan approval covers the plan and never a hazard.
+Whatever the scope, set aside anything the user would want to see before it lands: secrets, build output, unexpected binaries, mass deletions, a file whose purpose you cannot establish. Name each one in the report. Include an excluded hazard only with explicit authorization for that path and risk, subject to applicable safety rules. Continue with independent safe groups.
 
 ## Grouping
 
@@ -19,15 +19,15 @@ Group implementation with the tests, docs, schema, and config that complete it. 
 
 ## Message
 
-Write a subject line in the imperative, under 72 characters, formatted `type(scope): subject`. Add a body only for content a caller supplies for the message, such as decisions or facts worth keeping: put it on the commits it concerns, after a blank line, wrapped at 72 characters. Types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`. When a task ID is given, use it as the scope on the commits that genuinely belong to it, and leave the rest without a scope: `feat(UP-12170): wire validation config to scene usages`. Where a hook or repository convention requires a trailer, show the finished message with the trailer in the plan.
+Write a subject line in the imperative, under 72 characters, formatted `type(scope): subject`. Add a body only for content a caller supplies for the message, such as decisions or facts worth keeping: put it on the commits it concerns, after a blank line, wrapped at 72 characters. Types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`. When a task ID is given, use it as the scope on the commits that genuinely belong to it, and leave the rest without a scope: `feat(UP-12170): wire validation config to scene usages`. Include trailers required by hooks or repository conventions.
 
-## Plan and approval
+## Decide and proceed
 
-A caller-supplied scope arrived approved; go straight to execution. A worktree scope needs one plan first. List every commit in order with its message, purpose, exact files, the hunks where a file splits, the hazards set aside, and anything still ambiguous. Where a change could belong to more than one group, ask before writing the plan rather than guessing inside it. Ask once for the whole plan. A revision means a fresh plan and a fresh approval.
+Choose commit boundaries, order, messages, and exact paths or hunks from the inspected diff. Make routine grouping choices autonomously and proceed without presenting a plan or requesting approval. Honor an explicit request to review a plan first; if a consequential ambiguity remains, ask only about that ambiguity. If nothing safe is in scope, report why and make no commit.
 
 ## Execution
 
-For each commit, stage exact paths with `git add -- <paths>`, read `git diff --cached`, and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Commit the approved message verbatim, then continue straight to the next commit, since the approval covered all of them. A git or hook failure stops the run.
+For each commit, stage exact paths with `git add -- <paths>`, read `git diff --cached`, and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Preserve unrelated working-tree changes and leave excluded staged changes available but out of these commits. Commit the chosen message, inspect the resulting commit, and continue to the next group. A git or hook failure stops the run: inspect whether a commit was created before retrying, and do not bypass hooks. Do not amend, rewrite history, or push unless requested.
 
 ## Report
 
