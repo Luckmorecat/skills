@@ -6,7 +6,7 @@ disable-model-invocation: true
 
 Explore the requested feature until its purpose, experience, scope, and consequential decisions are clear. Start from the user's existing context. When the direction is uncertain, contribute concrete possibilities and help choose one. A repository or commitment to build is optional.
 
-Grill assumptions and use concrete scenarios to uncover missing behavior, contradictions, failure cases, and tradeoffs. Recommend answers with reasons.
+Grill assumptions and use concrete scenarios to uncover missing behavior, contradictions, failure cases, and tradeoffs. Recommend answers with reasons. When a decision rests on an external system (CI, deploy target, package registry, hosting, third-party service), read its live state with a read-only CLI (`gh api`, `npm view`, …) before settling it, and raise any mismatch with the plan as a question.
 
 Treat decisions as a tree. Ask independent questions whose prerequisites are settled together; defer questions that depend on unanswered choices. Wait for answers before treating recommendations as decisions. When the user delegates a choice, make it and explain why.
 
