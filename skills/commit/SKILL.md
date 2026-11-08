@@ -11,7 +11,7 @@ Use the user's requested scope. With a caller, use the diff since their fixed po
 
 ## Hazards
 
-Whatever the scope, set aside anything the user would want to see before it lands: secrets, build output, unexpected binaries, mass deletions, a file whose purpose you cannot establish. Name each one in the report. Include an excluded hazard only with explicit authorization for that path and risk, subject to applicable safety rules.
+Whatever the scope, set aside anything the user would want to see before it lands: secrets, build output, unexpected binaries, mass deletions, a file whose purpose you cannot establish. Name each one in the report. A hazard comes back in only when the user names its path specifically.
 
 ## Grouping
 
@@ -23,7 +23,7 @@ Write a subject line in the imperative, under 72 characters, formatted `type(sco
 
 ## Execution
 
-For each commit, take its paths from a fresh `git status --porcelain`, including both sides of renames and deletions, and stage them with `git add -A -- <paths>`. Read `git diff --cached` and correct the index when anything outside the group is in it. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Preserve unrelated working-tree changes and leave excluded staged changes available but out of these commits. Commit the chosen message, inspect the resulting commit, and continue to the next group. A git or hook failure stops the run: inspect whether a commit was created before retrying, and do not bypass hooks. Do not amend, rewrite history, or push unless requested.
+For each commit, inspect fresh `git status --porcelain` and the staged diff. Keep already-staged changes that belong to the group; stage its remaining changes with `git add -- <paths>`, using current worktree/index paths and including tracked deletions. Do not re-add the old source path of an already-staged rename. Read `git diff --cached` and remove anything outside the group from the index without discarding its contents. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Commit the chosen message, then continue to the next group. A git or hook failure stops the run.
 
 ## Report
 
