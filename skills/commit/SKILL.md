@@ -3,28 +3,22 @@ name: commit
 description: Use when committing changes.
 ---
 
-Every commit carries one piece of work, named for the work rather than the files.
-
 ## Scope
 
-Use the user's requested scope. With a caller, use the diff since their fixed point, excluding paths in their dirty snapshot. Reuse supplied verification and review evidence while it still matches the changes. For a direct request without a narrower scope, inspect the whole worktree. Treat existing staging as a hint about intent, not as a commit boundary.
+Commit only work done for the current task or changes the user explicitly asked to commit. Use a caller's fixed point and dirty snapshot to identify that scope. Existing staging does not establish ownership; leave unrelated work untouched. If ownership is unclear, leave the change uncommitted and report it.
 
 ## Hazards
 
-Whatever the scope, set aside anything the user would want to see before it lands: secrets, build output, unexpected binaries, mass deletions, a file whose purpose you cannot establish. Name each one in the report. A hazard comes back in only when the user names its path specifically.
+Do not commit secrets, build output, unexpected binaries, unexplained mass deletions, or changes whose purpose you cannot establish. Report what was excluded.
 
-## Grouping
+## Grouping and messages
 
-Group implementation with the tests, docs, schema, and config that complete it. Put unrelated features, fixes, refactors, docs, and tooling in separate commits. Assign whole files. Split a file by hunks only where it holds independent concerns and the hunks stage cleanly. Where a split fails either test, keep the file whole or leave it uncommitted, and say which.
+Split the scoped work into semantic commits whenever reasonable. Keep implementation with its related tests, docs, schema, and config. Split a shared file by hunks only when concerns are independent and stage cleanly; otherwise leave the mixed change uncommitted rather than include unrelated work.
 
-## Message
-
-Write a subject line in the imperative, under 72 characters, formatted `type(scope): subject`. Add a body only for content a caller supplies for the message, such as decisions or facts worth keeping: put it on the commits it concerns, after a blank line, wrapped at 72 characters. Types are `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, `chore`. When a task ID is given, use it as the scope on the commits that genuinely belong to it, and leave the rest without a scope: `feat(UP-12170): wire validation config to scene usages`. Include trailers required by hooks or repository conventions.
+Use imperative subjects under 72 characters: `type(scope): subject`, with types `feat`, `fix`, `refactor`, `perf`, `test`, `docs`, `style`, or `chore`. Use a supplied task ID as scope only for related commits. Add supplied rationale in the body and required repository trailers.
 
 ## Execution
 
-For each commit, inspect fresh `git status --porcelain` and the staged diff. Keep already-staged changes that belong to the group; stage its remaining changes with `git add -- <paths>`, using current worktree/index paths and including tracked deletions. Do not re-add the old source path of an already-staged rename. Read `git diff --cached` and remove anything outside the group from the index without discarding its contents. Stage a hunk split through the index with `git add -p` or `git apply --cached`, leaving working files untouched. Commit the chosen message, then continue to the next group. A git or hook failure stops the run.
+Inspect fresh `git status --porcelain` and staged/unstaged diffs. Retain already-staged changes in the selected group; stage only its remaining paths or hunks, including tracked deletions. Do not re-add the old path of an already-staged rename. Check `git diff --cached` before each commit; keep unrelated content out without discarding it, preserving its staged and unstaged state. Use `git add -p` or `git apply --cached` for hunk splits. A git or hook failure stops the run.
 
-## Report
-
-On success, list the commits made, the hazards set aside, and anything left uncommitted with the reason. On failure, report the error, the commits already in, and what remains.
+Report the commits made, excluded changes, and any failure or remaining work.
