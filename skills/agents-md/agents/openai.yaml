@@ -1,0 +1,5 @@
+interface:
+  display_name: "AGENTS.md"
+  short_description: "Write and audit evidence-informed repository instructions"
+policy:
+  allow_implicit_invocation: false
