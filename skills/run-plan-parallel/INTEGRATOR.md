@@ -1,21 +1,17 @@
 # Integrator
 
-Bring one committed slice from its branch onto the target branch in the repository root recorded in `plan.md`. Stop if that checkout is dirty outside the plan directory or its tip differs from the one recorded in the run state, in `log.md`'s current checkpoint, unless it differs only by this slice's rebased commits.
+Bring one committed slice from its branch onto the target branch in the repository root. Run state changes only through `plan`. Below, `plan <command>` means `python3 <cli> --plan <dir> <command>`, where `<cli>` is the CLI path you were given and `<dir>` the plan directory; `plan <command> --help` documents each command. Read the target, the recorded target tip, and the slice's worktree, branch, resource notes, and dirty snapshot from `plan status --json`. In the plan directory you write only the slice files you update; `plan land` makes every other change there.
 
-Resume an interrupted integration from its state: continue or abort a rebase in progress, and when the target branch already holds the rebased commits, only finish the steps after the fast-forward.
+Resume an interrupted integration from its state: continue or abort a rebase in progress. When the target already contains the slice branch's tip, or the slice is complete with its worktree still recorded, skip to landing; rerunning `plan land` finishes what the interrupted one left.
 
-Rebase the slice branch onto the target tip in the slice's worktree. Resolve conflicts so both sides keep their approved behavior. When a resolution would change either side's approved behavior or acceptance, abort the rebase and stop.
+Otherwise, stop when the repository root does not have the target checked out, has uncommitted changes outside the plan directory, or is not at the recorded target tip; `plan land` would refuse each of these.
 
-Rerun the slice's verification and the full relevant suite on the rebased branch, with the slice's resources recorded in the run state, and fix failures whose fix stays within the plan. When you resolved conflicts or fixed failures, invoke `code-review` against the target tip with the slice, the plan's shared outcomes, constraints, exclusions, and relevant decisions, the rebased verification evidence, the dirty snapshot recorded in `checkpoints/<ID>.md` to exclude, and the paths you changed as focus; otherwise the worker's review stands. If you cannot delegate further, return the review assignments with their context, so review stays independent, and continue with their results. Fix blocking findings and rerun affected checks.
+Rebase the slice branch onto the recorded target tip in the slice's worktree. Resolve conflicts so both sides keep their approved behavior. When a resolution would change either side's approved behavior or acceptance, abort the rebase and stop.
 
-Fast-forward the target branch to the rebased slice, then:
+Rerun the slice's verification and the full relevant suite on the rebased branch, with the slice's resource notes, and fix failures whose fix stays within the plan, committing fixes to the slice branch. When you resolved conflicts or fixed failures, invoke `code-review` against the target tip with the slice, the plan's shared outcomes, constraints, exclusions, and relevant decisions, the rebased verification evidence, the dirty snapshot to exclude along with any pre-existing files `checkpoints/<ID>.md` lists, and the paths you changed as focus; otherwise the worker's review stands. When you dispatch the reviewers yourself, dispatch them in the foreground, or wait for each report before going on. If you cannot delegate further, return the review assignments with their context as a request, so review stays independent, with the slice still in progress; continue with the reports the orchestrator returns to you. Fix blocking findings and rerun affected checks.
 
-1. record the landed revisions and evidence;
-2. apply the pointer corrections in `checkpoints/<ID>.md` to the slice file;
-3. add its downstream findings under `## Notes` in the files of the slices they affect, naming this slice;
-4. fold that checkpoint into the log's history and delete it;
-5. drop the slice from the run state and update the recorded target tip;
-6. mark the slice `complete` in `plan.md`;
-7. remove its worktree and branch and release its resources.
+Before landing, apply the pointer corrections in `checkpoints/<ID>.md` to the slice file, and add its downstream findings under `## Notes` in the files of the slices they affect, naming this slice; on a resumed integration, skip those already applied. Return corrections to `plan.md`'s prose instead of making them. Then run `plan land <ID> --evidence <text|@file>`, summarizing the rebased verification and review. It fast-forwards the target, records the landed revisions, folds the evidence and the checkpoint into `log.md`, moves the recorded target tip, marks the slice complete, and removes the worktree and branch; rerunning the same command resumes a land that stopped partway. Then free the resource instances its notes name, such as a database or cache it created.
 
-Return one of: the landed revisions, verification and review evidence, and the slices now eligible; or why you stopped (dirty checkout, tip mismatch, a conflict that changes approved behavior, or a failure outside the plan), with the conflicting paths and slices or the failing checks.
+Report a `plan land` refusal instead of forcing it. A resumed land refuses when outside commits reached the target before its fast-forward, naming the `plan target-tip` a reconciler records first; outside commits after the fast-forward do not stop it, and its log entry names them for a reconciler to record with `plan target-tip` after the land.
+
+Return one of: the landed revisions, verification and review evidence, the slices `plan next` now lists, any corrections for `plan.md`, and any outside commits the land logged beyond the tip; or why you stopped (a `plan land` refusal or a check before it, a conflict that changes approved behavior, or a failure outside the plan), with the refusal, the conflicting paths and slices, or the failing checks.
