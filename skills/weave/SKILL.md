@@ -38,7 +38,7 @@ Give each worker the paths of any supplied documents, any dirty snapshot, and, w
 
 ## 5. Review and commit
 
-Review always runs in subagents. Once the round's workers have returned their final reports, dispatch a reviewer with the round's fixed point, any dirty snapshot, and the reports' verification evidence. Where subagents cannot dispatch their own, dispatch `code-review`'s Standards and Plan compliance axes as two reviewers yourself, each following `code-review/SKILL.md` for its axis alone, and combine their findings. Route blocking findings to the worker that last touched the code.
+Review always runs in subagents. Once the round's workers have returned their final reports, write the round's review input once. Mark the untracked files from `git ls-files -o --exclude-standard` that are not in the dirty snapshot as intent-to-add with `git add -N`, so they show up in the diff and the committer can still stage them normally. Then write `git diff -M <fixed-point>` to `<scratchpad>/review/diff.patch` and `git diff -M --stat <fixed-point>` to `<scratchpad>/review/stat.txt`, where `<scratchpad>` is your scratchpad directory. Dispatch a reviewer with both paths, the round's fixed point, any dirty snapshot, and the reports' verification evidence. Where subagents cannot dispatch their own, dispatch `code-review`'s Standards and Plan compliance axes as two reviewers yourself, each following `code-review/SKILL.md` for its axis alone, and combine their findings. Route blocking findings to the worker that last touched the code.
 
 Once no blocking findings remain, dispatch a committer with the round's fixed point, any dirty snapshot, the commit-message notes workers reported, and the round's run decisions for the message.
 
