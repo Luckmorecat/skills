@@ -1,0 +1,34 @@
+{
+  "baseline": {
+    "actual_input_tokens": null,
+    "actual_output_tokens": null,
+    "provider_request_count": null,
+    "self_reported_nested_tools": 34,
+    "self_reported_exec_envelopes": 25,
+    "self_reported_collaboration_calls": 12,
+    "instrumented_processes": 9,
+    "output_bytes_all_instrumented_processes": 31275,
+    "process_seconds_sum": 1.8244,
+    "verification_processes": 9,
+    "shared_audit_test_methods": 6,
+    "shared_audit_passed": true,
+    "natural_review_blocking_findings": 0,
+    "seeded_review_defect_detected": true
+  },
+  "current": {
+    "actual_input_tokens": null,
+    "actual_output_tokens": null,
+    "provider_request_count": null,
+    "self_reported_nested_tools": 46,
+    "self_reported_exec_envelopes": 33,
+    "self_reported_collaboration_calls": 21,
+    "instrumented_processes": 13,
+    "output_bytes_all_instrumented_processes": 58238,
+    "process_seconds_sum": 1.9714,
+    "verification_processes": 11,
+    "shared_audit_test_methods": 6,
+    "shared_audit_passed": true,
+    "natural_review_blocking_findings": 0,
+    "seeded_review_defect_detected": true
+  }
+}

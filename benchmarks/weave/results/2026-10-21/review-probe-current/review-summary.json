@@ -1,0 +1,40 @@
+{
+  "review_only": true,
+  "findings": {
+    "blocking": 1,
+    "advisory": 0
+  },
+  "acceptance": {
+    "A1": true,
+    "A2": true,
+    "A3": false,
+    "A4": false
+  },
+  "verification": {
+    "processes": 1,
+    "tests": 16,
+    "failures": 13,
+    "log": "/tmp/weave-probe-current/logs/plan-review-suite.log"
+  },
+  "reviewer_tool_counts": {
+    "functions_exec": 4,
+    "nested_tools": 6,
+    "collaboration": 0,
+    "total": 10
+  },
+  "orchestrator_tool_counts": {
+    "functions_exec": 1,
+    "nested_tools": 1,
+    "collaboration": 2,
+    "total": 4
+  },
+  "missing_context_incidents": [
+    "Prior verification predates working tree; obtained fresh evidence."
+  ],
+  "repeated_work": [
+    "Complete suite rerun necessary because prior evidence did not establish current acceptance."
+  ],
+  "review_execution_blockers": [],
+  "candidate_edited": false,
+  "original_outcome_edited": false
+}

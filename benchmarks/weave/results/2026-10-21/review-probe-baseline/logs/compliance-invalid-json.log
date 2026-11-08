@@ -1,0 +1,28 @@
+test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) ... 
+  test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp_d8djz2o/invalid.json',)) ... FAIL
+  test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp_d8djz2o/valid.json', '/tmp/tmp_d8djz2o/invalid.json')) ... FAIL
+
+======================================================================
+FAIL: test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp_d8djz2o/invalid.json',))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-baseline/work/tests/test_cli.py", line 53, in test_invalid_json_in_either_file
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-probe-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_json_in_either_file (tests.test_cli.CliTests.test_invalid_json_in_either_file) (paths=('/tmp/tmp_d8djz2o/valid.json', '/tmp/tmp_d8djz2o/invalid.json'))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-baseline/work/tests/test_cli.py", line 53, in test_invalid_json_in_either_file
+    self.assert_error(self.run_cli(*paths), 'Error:')
+  File "/tmp/weave-probe-baseline/work/tests/test_cli.py", line 25, in assert_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+----------------------------------------------------------------------
+Ran 1 test in 0.048s
+
+FAILED (failures=2)

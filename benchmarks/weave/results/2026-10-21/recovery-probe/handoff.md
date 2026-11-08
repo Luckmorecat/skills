@@ -1,0 +1,1 @@
+The prior core worker is unavailable. Its implementation is in the working tree, and it reported its prior checks green. Run decision D1 determines approved reserved-key behaviour. Reconstruct verification as needed; return unresolved questions to the orchestrator.

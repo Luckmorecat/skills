@@ -1,0 +1,102 @@
+{
+  "completion": "complete",
+  "accepted": true,
+  "fixed_point": "a1554a97a974af7fad86abf160a5dc391c8382fe",
+  "commits": [
+    "4da728d411cb37ed548c6520b6bc75735fb17c4c"
+  ],
+  "acceptance": {
+    "A1": {
+      "accepted": true,
+      "evidence": "Eight core regression tests cover recursive merge, replacements, null deletion and detached values; source inspected."
+    },
+    "A2": {
+      "accepted": true,
+      "evidence": "Core tests reject roots and reserved keys in both inputs, nested lists, and replaced branches; source inspected."
+    },
+    "A3": {
+      "accepted": true,
+      "evidence": "Seven subprocess CLI tests plus cli-demonstration.log cover layered/base-only success and specified status-2 failures."
+    },
+    "A4": {
+      "accepted": true,
+      "evidence": "Final committed suite passes 15 tests (final-suite.log); CLI demonstrations pass; LOCAL_NOTES.txt original SHA256 preserved. Legacy attempted once, exit 69 unavailable, not passed."
+    }
+  },
+  "verification_counts": {
+    "instrumented_processes": 9,
+    "exit_zero": 6,
+    "expected_test_first_red": 2,
+    "legacy_unavailable": 1,
+    "legacy_attempts": 1,
+    "final_suite_tests": 15
+  },
+  "tool_counts_self_reported": {
+    "orchestrator": {
+      "nested_tools": 12,
+      "functions_exec": 9,
+      "collaboration": 12,
+      "verification_processes": 2
+    },
+    "core": {
+      "nested_tools": 8,
+      "functions_exec": 5,
+      "collaboration": 0,
+      "verification_processes": 3
+    },
+    "cli": {
+      "nested_tools": 7,
+      "functions_exec": 4,
+      "collaboration": 0,
+      "verification_processes": 4
+    },
+    "standards": {
+      "nested_tools": 2,
+      "functions_exec": 2,
+      "collaboration": 0,
+      "verification_processes": 0
+    },
+    "compliance": {
+      "nested_tools": 2,
+      "functions_exec": 2,
+      "collaboration": 0,
+      "verification_processes": 0
+    },
+    "committer": {
+      "nested_tools": 3,
+      "functions_exec": 3,
+      "collaboration": 0,
+      "verification_processes": 0
+    }
+  },
+  "token_counts": null,
+  "missing_context_incidents": [],
+  "repeated_work": [],
+  "blockers": [],
+  "limitations": [
+    "Legacy smoke runner unavailable: optional internal driver is not installed (exit 69). Authorized unittest/subprocess substitute proves acceptance."
+  ],
+  "review_findings": {
+    "standards": {
+      "blocking": 0,
+      "advisory": 0
+    },
+    "plan_compliance": {
+      "blocking": 0,
+      "advisory": 0
+    }
+  },
+  "repair_rounds": 0,
+  "run_decisions": [
+    "Python standard library only (settled brief).",
+    "Preserve supplied dirty LOCAL_NOTES.txt (settled brief).",
+    "Use unittest/subprocess acceptance evidence when legacy runner unavailable (settled brief)."
+  ],
+  "new_run_decisions": [],
+  "preserved_dirty_paths": [
+    "LOCAL_NOTES.txt"
+  ],
+  "kept_worktrees": [],
+  "logs_root": "/tmp/weave-ab-baseline/logs",
+  "events": "/tmp/weave-ab-baseline/events.jsonl"
+}

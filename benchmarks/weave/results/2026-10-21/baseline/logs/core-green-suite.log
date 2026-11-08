@@ -1,0 +1,14 @@
+test_base_only (tests.test_cli.CliTests.test_base_only) ... ok
+test_dictionary_can_be_replaced_by_scalar_or_list (tests.test_core.CoreTests.test_dictionary_can_be_replaced_by_scalar_or_list) ... ok
+test_existing_scalar (tests.test_core.CoreTests.test_existing_scalar) ... ok
+test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) ... ok
+test_non_reserved_underscore_keys_are_allowed (tests.test_core.CoreTests.test_non_reserved_underscore_keys_are_allowed) ... ok
+test_recursive_merge_replacements_and_deletions (tests.test_core.CoreTests.test_recursive_merge_replacements_and_deletions) ... ok
+test_reserved_keys_are_rejected_in_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_in_both_inputs) ... ok
+test_result_is_detached_and_inputs_are_unchanged (tests.test_core.CoreTests.test_result_is_detached_and_inputs_are_unchanged) ... ok
+test_validate_base_branches_before_replacing_or_deleting (tests.test_core.CoreTests.test_validate_base_branches_before_replacing_or_deleting) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.021s
+
+OK

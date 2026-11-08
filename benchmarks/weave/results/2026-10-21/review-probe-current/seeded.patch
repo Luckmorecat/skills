@@ -1,0 +1,13 @@
+diff --git a/configkit/__main__.py b/configkit/__main__.py
+index bef5e59..d517117 100644
+--- a/configkit/__main__.py
++++ b/configkit/__main__.py
+@@ -16,7 +16,7 @@ def main():
+         print(json.dumps(merge(base, override)))
+     except (ValueError, OSError) as error:
+         print(f'configkit: {error}', file=sys.stderr)
+-        return 2
++        return 0
+     return 0
+ 
+ if __name__ == '__main__':

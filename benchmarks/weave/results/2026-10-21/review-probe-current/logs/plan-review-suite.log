@@ -1,0 +1,162 @@
+test_base_only (test_cli.CliTests.test_base_only) ... ok
+test_invalid_argument_counts (test_cli.CliTests.test_invalid_argument_counts) ... ok
+test_invalid_encoding (test_cli.CliTests.test_invalid_encoding) ... FAIL
+test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) ... 
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),)) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json'))) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='[]', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),)) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='[]', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json'))) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='null', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),)) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='null', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json'))) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{"items": [{"__hidden": 1}]}', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),)) ... FAIL
+  test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{"items": [{"__hidden": 1}]}', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json'))) ... FAIL
+test_layered_files (test_cli.CliTests.test_layered_files) ... ok
+test_replaced_base_branch_is_validated (test_cli.CliTests.test_replaced_base_branch_is_validated) ... FAIL
+test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) ... 
+  test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4/missing.json'),)) ... FAIL
+  test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4/valid.json'), PosixPath('/tmp/tmpf6jrggz4/missing.json'))) ... FAIL
+  test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4'),)) ... FAIL
+test_both_roots_must_be_dicts (test_core.CoreTests.test_both_roots_must_be_dicts) ... ok
+test_existing_scalar (test_core.CoreTests.test_existing_scalar) ... ok
+test_merge_does_not_mutate_inputs (test_core.CoreTests.test_merge_does_not_mutate_inputs) ... ok
+test_normal_keys_and_null_list_elements_are_preserved (test_core.CoreTests.test_normal_keys_and_null_list_elements_are_preserved) ... ok
+test_null_deletes_at_every_depth (test_core.CoreTests.test_null_deletes_at_every_depth) ... ok
+test_recursive_merge_and_replacements (test_core.CoreTests.test_recursive_merge_and_replacements) ... ok
+test_replaced_and_deleted_branches_still_get_validated (test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) ... ok
+test_reserved_keys_are_rejected_throughout_both_inputs (test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) ... ok
+test_result_is_detached_from_both_inputs (test_core.CoreTests.test_result_is_detached_from_both_inputs) ... ok
+
+======================================================================
+FAIL: test_invalid_encoding (test_cli.CliTests.test_invalid_encoding)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 78, in test_invalid_encoding
+    self.assert_cli_error(self.run_cli(invalid), 'decode')
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json')))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='[]', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='[]', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json')))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='null', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='null', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json')))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{"items": [{"__hidden": 1}]}', args=(PosixPath('/tmp/tmpu0uljtye/invalid.json'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) (contents='{"items": [{"__hidden": 1}]}', args=(PosixPath('/tmp/tmpu0uljtye/valid.json'), PosixPath('/tmp/tmpu0uljtye/invalid.json')))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 55, in test_invalid_file_contents_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), diagnostic)
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_replaced_base_branch_is_validated (test_cli.CliTests.test_replaced_base_branch_is_validated)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 63, in test_replaced_base_branch_is_validated
+    self.assert_cli_error(self.run_cli(base, override), 'reserved')
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4/missing.json'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 72, in test_unreadable_files_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), str(args[-1]))
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4/valid.json'), PosixPath('/tmp/tmpf6jrggz4/missing.json')))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 72, in test_unreadable_files_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), str(args[-1]))
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+======================================================================
+FAIL: test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) (args=(PosixPath('/tmp/tmpf6jrggz4'),))
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 72, in test_unreadable_files_in_either_layer
+    self.assert_cli_error(self.run_cli(*args), str(args[-1]))
+  File "/tmp/weave-probe-current/work/tests/test_cli.py", line 15, in assert_cli_error
+    self.assertEqual(result.returncode, 2)
+AssertionError: 0 != 2
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.363s
+
+FAILED (failures=13)
