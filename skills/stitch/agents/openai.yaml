@@ -1,0 +1,5 @@
+interface:
+  display_name: "Stitch"
+  short_description: "Land settled work with one lean worker and Codex review"
+policy:
+  allow_implicit_invocation: false

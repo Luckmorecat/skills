@@ -15,6 +15,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `implement` | Implement requested work and verify it green, leaving it uncommitted. |
 | `land` | Implement requested work, review it, and commit it green. |
 | `weave` | Land work settled in the current session through subagents. |
+| `stitch` | Land work settled in the current session with one lean worker and Codex review. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
 | `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
 | `run-plan-parallel` | Run independent slices of a plan concurrently in isolated worktrees, integrating each onto the target branch. |
@@ -33,6 +34,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | A small change with a settled scope | `contract`, then `land` |
 | A change you want to review or commit yourself | `implement` |
 | A small change settled in the current session, with context to preserve | `weave` |
+| A settled change when you want low primary-agent quota and Codex review | `stitch` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
 | A prepared plan should run through completion | `run-plan` for sequential execution through subagents |
 | A prepared plan has independent slices worth running at once | `run-plan-parallel` for concurrent execution in worktrees |
@@ -63,6 +65,8 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. The plan carries delegated discretion, precedence rules, and any prototype reference, so execution settles what they cover the same way with or without a contract. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
 
 `weave` lands work whose intent the current session settled, orchestrating subagents while the main thread keeps the conversation's intent and decisions. It first writes workers a brief of the goal, acceptance, scope, and settled decisions, amending a supplied contract where the conversation changed it, then has workers follow its `WORKER.md` while it answers their questions or escalates them to you. When the brief names sources of truth that settle behaviour beyond its acceptance, such as a prototype, design, or spec with examples, a reconciler following its `RECONCILER.md` maps the behaviour in scope against them before work starts and checks the committed result against them. Workers report discrepancies with any source of truth, and a reconciler settles them in batches. It splits the work where parts can proceed independently or would overload one worker, running independent chunks that share no files or verification resources in parallel worktrees followed by an integration worker, and dependent ones in sequence. An isolated review follows, then a worker commits through `commit`; with autonomy granted, it decides choices the brief leaves open, except hard stops such as data loss, security, public contracts, or cost, and passes them to affected workers, review, and the commit message. A final check repeats repair, review, and commit until acceptance holds at the last commit.
+
+`stitch` is the quota-friendly companion to `weave` for settled changes that do not need a planner, parallel worktrees, or source-of-truth reconciliation. The main thread keeps intent and writes a compact brief including already-known starting points (file paths, symbols, and check commands), then dispatches one lean worker following its `WORKER.md`. That worker implements, verifies green, runs an independent read-only review loop through `codex exec` (defaulting to `gpt-6.2-sol` at `xhigh` reasoning effort, defined in `REVIEW.md`) checking both code quality and verbatim brief compliance, fixes accepted findings, and commits its owned paths directly without spawning a separate committer subagent. When Codex is unavailable or fallback-only review is requested, the worker dispatches a single isolated review subagent itself where nested subagents are supported, or stops uncommitted for the orchestrator to run that fallback review and commit.
 
 `run-plan` delegates all substantive work, running one `next-slice` subagent at a time. A reconciler subagent repairs blockers within the agreed plan and escalates plan changes to the user. Independent slices may continue while affected work waits for an answer. When you ask it to run autonomously, the reconciler decides those changes itself except for hard stops such as data loss, security, public contracts, or cost. It records each decision for review, alerts you at once when two or more slices build on one, and ends with a report of decisions made on your behalf.
 
@@ -96,7 +100,7 @@ List the available skills:
 npx skills add Luckmorecat/skills --list
 ```
 
-Install all seventeen globally for Codex:
+Install all eighteen globally for Codex:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent codex --skill '*' --yes
@@ -115,7 +119,7 @@ npx skills add Luckmorecat/skills --global --agent codex \
 
 ## Install for Claude Code
 
-Install all seventeen globally for Claude Code:
+Install all eighteen globally for Claude Code:
 
 ```bash
 npx skills add Luckmorecat/skills --global --agent claude-code --skill '*' --yes
