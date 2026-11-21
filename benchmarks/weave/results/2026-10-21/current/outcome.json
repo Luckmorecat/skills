@@ -1,0 +1,125 @@
+{
+  "completion": true,
+  "acceptance": {
+    "A1": {
+      "satisfied": true,
+      "evidence": [
+        "logs/core_green.log",
+        "logs/orchestrator_final_check.log"
+      ]
+    },
+    "A2": {
+      "satisfied": true,
+      "evidence": [
+        "logs/core_green.log",
+        "logs/orchestrator_final_check.log"
+      ]
+    },
+    "A3": {
+      "satisfied": true,
+      "evidence": [
+        "logs/cli_green.log",
+        "logs/cli_real_examples.log",
+        "logs/orchestrator_final_check.log"
+      ]
+    },
+    "A4": {
+      "satisfied": true,
+      "evidence": [
+        "logs/cli_complete_suite.log",
+        "logs/cli_final_constraints.log",
+        "logs/orchestrator_final_check.log"
+      ]
+    }
+  },
+  "fixed_point": "a1554a97a974af7fad86abf160a5dc391c8382fe",
+  "commits": [
+    "dc586c7ebd1fd09946e26bd2ba4cb24697796a79"
+  ],
+  "verification_counts": {
+    "instrumented_processes": 13,
+    "inspection_only_processes": 2,
+    "verification_processes": 11,
+    "verification_exit_zero": 8,
+    "expected_test_first_failures": 2,
+    "unavailable_legacy_smoke": 1,
+    "final_tests_passed": 16
+  },
+  "legacy_smoke": {
+    "attempts": 1,
+    "exit_code": 69,
+    "successful": false,
+    "reason": "Optional internal driver is not installed",
+    "log": "logs/orchestrator_legacy_smoke.log"
+  },
+  "tool_counts_self_reported": {
+    "orchestrator": {
+      "functions_exec": 8,
+      "nested_tools": 11,
+      "collaboration": 18,
+      "total": 37
+    },
+    "core": {
+      "functions_exec": 5,
+      "nested_tools": 9,
+      "collaboration": 1,
+      "total": 15
+    },
+    "cli": {
+      "functions_exec": 7,
+      "nested_tools": 12,
+      "collaboration": 1,
+      "total": 20
+    },
+    "standards": {
+      "functions_exec": 3,
+      "nested_tools": 3,
+      "collaboration": 0,
+      "total": 6
+    },
+    "plan_review": {
+      "functions_exec": 6,
+      "nested_tools": 5,
+      "collaboration": 1,
+      "total": 12
+    },
+    "committer": {
+      "functions_exec": 4,
+      "nested_tools": 6,
+      "collaboration": 0,
+      "total": 10
+    }
+  },
+  "token_counts": null,
+  "missing_context_incidents": [
+    {
+      "agent": "plan_review",
+      "type": "read_mechanism_clarification",
+      "resolved": true,
+      "detail": "Asked whether direct source/log inspection was permitted after wrapper returned summaries; orchestrator clarified yes. No missing source or task context remained."
+    }
+  ],
+  "repeated_work": [],
+  "blockers": [],
+  "review_findings": {
+    "Standards": {
+      "blocking": 0,
+      "advisory": 0
+    },
+    "Plan compliance": {
+      "blocking": 0,
+      "advisory": 0
+    }
+  },
+  "run_decisions": [
+    "Python standard library only (brief supplied).",
+    "Preserve pre-existing dirty LOCAL_NOTES.txt (brief supplied).",
+    "Use unittest/subprocess acceptance evidence because legacy smoke is unavailable (brief supplied)."
+  ],
+  "dirty_snapshot_preserved": {
+    "path": "LOCAL_NOTES.txt",
+    "sha256": "3cc1f3ffdd22f0f42c6449b2be0fea9b2660da6c2ddc99d705ddb562029d4e26"
+  },
+  "uncommitted_task_changes": false,
+  "retained_worktrees": []
+}

@@ -1,0 +1,235 @@
+diff --git a/configkit/__main__.py b/configkit/__main__.py
+index 6e17179..d347b90 100644
+--- a/configkit/__main__.py
++++ b/configkit/__main__.py
+@@ -2,15 +2,24 @@ import json
+ import sys
+ from .core import merge
+ 
++
+ def main():
++    if len(sys.argv) not in (2, 3):
++        print('Usage: python -m configkit BASE [OVERRIDE]', file=sys.stderr)
++        return 2
+     try:
+-        base = json.load(open(sys.argv[1]))
+-        override = json.load(open(sys.argv[2])) if len(sys.argv) > 2 else {}
++        with open(sys.argv[1], encoding='utf-8') as source:
++            base = json.load(source)
++        override = {}
++        if len(sys.argv) == 3:
++            with open(sys.argv[2], encoding='utf-8') as source:
++                override = json.load(source)
+         print(json.dumps(merge(base, override)))
+     except (ValueError, OSError) as error:
+-        print(str(error), file=sys.stderr)
+-        return 0
++        print(f'Error: {error}', file=sys.stderr)
++        return 2
+     return 0
+ 
++
+ if __name__ == '__main__':
+     sys.exit(main())
+diff --git a/configkit/core.py b/configkit/core.py
+index 4d0ec42..d0407bb 100644
+--- a/configkit/core.py
++++ b/configkit/core.py
+@@ -1,6 +1,36 @@
+ import copy
+ 
+-def merge(base, override):
++
++def _validate(value):
++    if isinstance(value, dict):
++        for key, child in value.items():
++            if isinstance(key, str) and key.startswith('__'):
++                raise ValueError(f'reserved configuration key: {key}')
++            _validate(child)
++    elif isinstance(value, list):
++        for child in value:
++            _validate(child)
++
++
++def _merge(base, override):
+     result = copy.deepcopy(base)
+-    result.update(override)
++    for key, value in override.items():
++        if value is None:
++            result.pop(key, None)
++        elif isinstance(value, dict):
++            previous = result.get(key)
++            result[key] = _merge(previous if isinstance(previous, dict) else {},
++                                 value)
++        else:
++            result[key] = copy.deepcopy(value)
+     return result
++
++
++def merge(base, override):
++    """Merge detached configurations, using null overrides to delete keys."""
++    if not isinstance(base, dict) or not isinstance(override, dict):
++        raise ValueError('configuration roots must be dictionaries')
++    # Validate both complete inputs before replacement can hide invalid branches.
++    _validate(base)
++    _validate(override)
++    return _merge(base, override)
+diff --git a/tests/test_cli.py b/tests/test_cli.py
+index 218b9b1..2010c39 100644
+--- a/tests/test_cli.py
++++ b/tests/test_cli.py
+@@ -5,11 +5,76 @@ import sys
+ import tempfile
+ import unittest
+ 
++
+ class CliTests(unittest.TestCase):
++    def setUp(self):
++        self.directory = tempfile.TemporaryDirectory()
++        self.addCleanup(self.directory.cleanup)
++        self.root = pathlib.Path(self.directory.name)
++
++    def write(self, name, contents):
++        path = self.root / name
++        path.write_text(contents, encoding='utf-8')
++        return str(path)
++
++    def run_cli(self, *paths):
++        return subprocess.run([sys.executable, '-m', 'configkit', *paths],
++                              capture_output=True, text=True)
++
++    def assert_error(self, result, message):
++        self.assertEqual(result.returncode, 2)
++        self.assertEqual(result.stdout, '')
++        self.assertIn(message, result.stderr)
++        self.assertNotIn('Traceback', result.stderr)
++
+     def test_base_only(self):
+-        with tempfile.TemporaryDirectory() as d:
+-            p = pathlib.Path(d) / 'base.json'
+-            p.write_text('{"x": 1}')
+-            r = subprocess.run([sys.executable, '-m', 'configkit', str(p)], capture_output=True, text=True)
+-            self.assertEqual(r.returncode, 0)
+-            self.assertEqual(json.loads(r.stdout), {'x': 1})
++        base = self.write('base.json', '{"x": 1}')
++        result = self.run_cli(base)
++        self.assertEqual(result.returncode, 0)
++        self.assertEqual(json.loads(result.stdout), {'x': 1})
++        self.assertEqual(result.stderr, '')
++
++    def test_layered_merge(self):
++        base = self.write('base.json', json.dumps({
++            'nested': {'keep': 1, 'remove': 2}, 'list': [1]}))
++        override = self.write('override.json', json.dumps({
++            'nested': {'add': 3, 'remove': None}, 'list': [2]}))
++        result = self.run_cli(base, override)
++        self.assertEqual(result.returncode, 0)
++        self.assertEqual(json.loads(result.stdout), {
++            'nested': {'keep': 1, 'add': 3}, 'list': [2]})
++        self.assertEqual(result.stderr, '')
++
++    def test_invalid_json_in_either_file(self):
++        valid = self.write('valid.json', '{}')
++        invalid = self.write('invalid.json', '{broken')
++        for paths in ((invalid,), (valid, invalid)):
++            with self.subTest(paths=paths):
++                self.assert_error(self.run_cli(*paths), 'Error:')
++
++    def test_invalid_root_in_either_file(self):
++        valid = self.write('valid.json', '{}')
++        for value in ('[]', 'null', '1', '"text"', 'true'):
++            invalid = self.write('invalid.json', value)
++            for paths in ((invalid,), (valid, invalid)):
++                with self.subTest(value=value, paths=paths):
++                    self.assert_error(self.run_cli(*paths), 'roots')
++
++    def test_reserved_keys_in_either_file(self):
++        valid = self.write('valid.json', '{}')
++        invalid = self.write('invalid.json', '{"items": [{"__secret": 1}]}')
++        for paths in ((invalid,), (valid, invalid)):
++            with self.subTest(paths=paths):
++                self.assert_error(self.run_cli(*paths), 'reserved')
++
++    def test_unreadable_file_in_either_position(self):
++        valid = self.write('valid.json', '{}')
++        missing = str(self.root / 'missing.json')
++        for paths in ((missing,), (valid, missing), (str(self.root),)):
++            with self.subTest(paths=paths):
++                self.assert_error(self.run_cli(*paths), 'Error:')
++
++    def test_invalid_argument_count(self):
++        for paths in ((), ('a', 'b', 'c')):
++            with self.subTest(paths=paths):
++                self.assert_error(self.run_cli(*paths), 'Usage:')
+diff --git a/tests/test_core.py b/tests/test_core.py
+index e642534..b0b5bb0 100644
+--- a/tests/test_core.py
++++ b/tests/test_core.py
+@@ -1,6 +1,67 @@
++import copy
+ import unittest
+ from configkit import merge
+ 
+ class CoreTests(unittest.TestCase):
+     def test_existing_scalar(self):
+         self.assertEqual(merge({'x': 1}, {'x': 2}), {'x': 2})
++
++    def test_recursive_merge_replacements_and_deletions(self):
++        base = {'nested': {'keep': 1, 'replace': 2, 'remove': 3},
++                'list': [1, 2], 'scalar': 5, 'remove': 9}
++        override = {'nested': {'replace': 4, 'remove': None, 'absent': None},
++                    'list': [3], 'scalar': {'new': 6, 'absent': None},
++                    'remove': None, 'absent': None}
++        self.assertEqual(merge(base, override), {
++            'nested': {'keep': 1, 'replace': 4}, 'list': [3],
++            'scalar': {'new': 6}})
++
++    def test_dictionary_can_be_replaced_by_scalar_or_list(self):
++        self.assertEqual(merge({'a': {'x': 1}, 'b': {'y': 2}},
++                               {'a': 3, 'b': [4]}), {'a': 3, 'b': [4]})
++
++    def test_result_is_detached_and_inputs_are_unchanged(self):
++        base = {'unchanged': [{'a': [1]}], 'nested': {'old': [2]}}
++        override = {'nested': {'new': [{'b': [3]}]}, 'added': [4]}
++        original_base, original_override = copy.deepcopy((base, override))
++        result = merge(base, override)
++        self.assertEqual(base, original_base)
++        self.assertEqual(override, original_override)
++        result['unchanged'][0]['a'].append(9)
++        result['nested']['old'].append(9)
++        result['nested']['new'][0]['b'].append(9)
++        result['added'].append(9)
++        self.assertEqual(base, original_base)
++        self.assertEqual(override, original_override)
++
++    def test_invalid_roots_raise_value_error(self):
++        for invalid in (None, [], 'text', 1, True):
++            with self.subTest(invalid=invalid):
++                with self.assertRaises(ValueError):
++                    merge(invalid, {})
++                with self.assertRaises(ValueError):
++                    merge({}, invalid)
++
++    def test_reserved_keys_are_rejected_in_both_inputs(self):
++        invalid_values = [
++            {'__secret': 1},
++            {'nested': {'__secret': 1}},
++            {'items': [{'nested': [{'__secret': 1}]}]},
++        ]
++        for invalid in invalid_values:
++            with self.subTest(invalid=invalid):
++                with self.assertRaises(ValueError):
++                    merge(invalid, {})
++                with self.assertRaises(ValueError):
++                    merge({}, invalid)
++
++    def test_validate_base_branches_before_replacing_or_deleting(self):
++        for replacement in (None, 1, [], {}):
++            with self.subTest(replacement=replacement):
++                with self.assertRaises(ValueError):
++                    merge({'branch': [{'__hidden': 1}]},
++                          {'branch': replacement})
++
++    def test_non_reserved_underscore_keys_are_allowed(self):
++        self.assertEqual(merge({'_private': 1}, {'normal__key': 2}),
++                         {'_private': 1, 'normal__key': 2})

@@ -1,0 +1,4 @@
+layered success status= 0 stdout= '{"service": {"port": 443}, "items": [2, 3]}\n' stderr= ''
+base-only success status= 0 stdout= '{"service": {"port": 80, "remove": true}, "items": [1]}\n' stderr= ''
+missing file error status= 2 stdout= '' stderr= "configkit: [Errno 2] No such file or directory: '/tmp/tmpf8hox02v/missing.json'\n"
+argument error status= 2 stdout= '' stderr= 'usage: python -m configkit BASE [OVERRIDE]\n'

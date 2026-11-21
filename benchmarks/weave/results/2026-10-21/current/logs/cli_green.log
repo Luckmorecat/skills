@@ -1,0 +1,12 @@
+test_base_only (tests.test_cli.CliTests.test_base_only) ... ok
+test_invalid_argument_counts (tests.test_cli.CliTests.test_invalid_argument_counts) ... ok
+test_invalid_encoding (tests.test_cli.CliTests.test_invalid_encoding) ... ok
+test_invalid_file_contents_in_either_layer (tests.test_cli.CliTests.test_invalid_file_contents_in_either_layer) ... ok
+test_layered_files (tests.test_cli.CliTests.test_layered_files) ... ok
+test_replaced_base_branch_is_validated (tests.test_cli.CliTests.test_replaced_base_branch_is_validated) ... ok
+test_unreadable_files_in_either_layer (tests.test_cli.CliTests.test_unreadable_files_in_either_layer) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.320s
+
+OK

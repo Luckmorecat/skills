@@ -1,0 +1,23 @@
+test_base_only (test_cli.CliTests.test_base_only) ... ok
+test_invalid_argument_counts (test_cli.CliTests.test_invalid_argument_counts) ... ok
+test_invalid_encoding (test_cli.CliTests.test_invalid_encoding) ... ok
+test_invalid_file_contents_in_either_layer (test_cli.CliTests.test_invalid_file_contents_in_either_layer) ... ok
+test_layered_files (test_cli.CliTests.test_layered_files) ... ok
+test_replaced_base_branch_is_validated (test_cli.CliTests.test_replaced_base_branch_is_validated) ... ok
+test_unreadable_files_in_either_layer (test_cli.CliTests.test_unreadable_files_in_either_layer) ... ok
+test_both_roots_must_be_dicts (test_core.CoreTests.test_both_roots_must_be_dicts) ... ok
+test_existing_scalar (test_core.CoreTests.test_existing_scalar) ... ok
+test_merge_does_not_mutate_inputs (test_core.CoreTests.test_merge_does_not_mutate_inputs) ... ok
+test_normal_keys_and_null_list_elements_are_preserved (test_core.CoreTests.test_normal_keys_and_null_list_elements_are_preserved) ... ok
+test_null_deletes_at_every_depth (test_core.CoreTests.test_null_deletes_at_every_depth) ... ok
+test_recursive_merge_and_replacements (test_core.CoreTests.test_recursive_merge_and_replacements) ... ok
+test_replaced_and_deleted_branches_still_get_validated (test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) ... ok
+test_reserved_keys_are_rejected_throughout_both_inputs (test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) ... ok
+test_result_is_detached_from_both_inputs (test_core.CoreTests.test_result_is_detached_from_both_inputs) ... ok
+
+----------------------------------------------------------------------
+Ran 16 tests in 0.356s
+
+OK
+Final acceptance suite and preserved dirty snapshot verified
+dc586c7ebd1fd09946e26bd2ba4cb24697796a79

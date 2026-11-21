@@ -1,0 +1,20 @@
+{
+  "run_date": "2026-10-21",
+  "runtime": "ChatGPT Work collaboration subagents",
+  "model": "Inherited runtime default; concrete provider model ID not exposed",
+  "provider_usage_counters": "not exposed",
+  "repetitions_per_arm": 1,
+  "arm_schedule": "concurrent",
+  "baseline_dispatch": "fork_turns=all",
+  "current_dispatch": "fork_turns=none",
+  "shared_filesystem": true,
+  "instruction_refs": {
+    "baseline": "a9c46d635e9af7fdc679a757901bc9cf0e071d4a",
+    "current": "df3ac191f6cbb5f5eb389f6885283b5a956194d3"
+  },
+  "fixture_initial_commit": "a1554a97a974af7fad86abf160a5dc391c8382fe",
+  "fixture_note": "Initial pilot preceded fixed commit-date metadata in generator; both arms had identical initial commit. Subsequent preparations fix identity/dates.",
+  "raw_agent_traces": "not exposed; role reports and process events archived instead",
+  "normal_run_phase": "two dependent workers, two isolated review axes, committer, final orchestrator check",
+  "scope_of_summary": "normal runs only; independent audit and seeded probes excluded from tool/process totals"
+}

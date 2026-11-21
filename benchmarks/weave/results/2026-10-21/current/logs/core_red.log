@@ -1,0 +1,227 @@
+EEEFEEEEE...FFFFFFFFFFFFE
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base=None, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'update'
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base={}, override=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'NoneType' object is not iterable
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base=[], override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'update'
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base='text', override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'update'
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base=1, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'int' object has no attribute 'update'
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base={}, override=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'int' object is not iterable
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base=True, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'bool' object has no attribute 'update'
+
+======================================================================
+ERROR: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base={}, override=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 52, in test_both_roots_must_be_dicts
+    merge(base, override)
+  File "/tmp/weave-ab-current/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'bool' object is not iterable
+
+======================================================================
+ERROR: test_result_is_detached_from_both_inputs (tests.test_core.CoreTests.test_result_is_detached_from_both_inputs)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 33, in test_result_is_detached_from_both_inputs
+    result['merged']['keep'].append(20)
+    ~~~~~~~~~~~~~~~~^^^^^^^^
+KeyError: 'keep'
+
+======================================================================
+FAIL: test_both_roots_must_be_dicts (tests.test_core.CoreTests.test_both_roots_must_be_dicts) (base={}, override=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 51, in test_both_roots_must_be_dicts
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_null_deletes_at_every_depth (tests.test_core.CoreTests.test_null_deletes_at_every_depth)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 18, in test_null_deletes_at_every_depth
+    self.assertEqual(merge(
+AssertionError: {'remove': None, 'nested': {'remove': None,[94 chars]one}} != {'nested': {'keep': 3}, 'new': {'keep': 4}, 'replaced': {}}
++ {'nested': {'keep': 3}, 'new': {'keep': 4}, 'replaced': {}}
+- {'absent': None,
+-  'nested': {'absent': None, 'remove': None},
+-  'new': {'absent': None, 'keep': 4},
+-  'remove': None,
+-  'replaced': {'absent': None}}
+
+======================================================================
+FAIL: test_recursive_merge_and_replacements (tests.test_core.CoreTests.test_recursive_merge_and_replacements)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 13, in test_recursive_merge_and_replacements
+    self.assertEqual(merge(base, override), {
+AssertionError: {'nested': {'change': 3, 'add': 4}, 'list': [2, 3], 's[37 chars]ent'} != {'nested': {'keep': 1, 'change': 3, 'add': 4}, 'list':[48 chars]ent'}
+  {'dict': 'replacement',
+   'list': [2, 3],
+-  'nested': {'add': 4, 'change': 3},
++  'nested': {'add': 4, 'change': 3, 'keep': 1},
+?                                  +++++++++++
+
+   'scalar': {'new': 5}}
+
+======================================================================
+FAIL: test_replaced_and_deleted_branches_still_get_validated (tests.test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) (replacement=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 69, in test_replaced_and_deleted_branches_still_get_validated
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_replaced_and_deleted_branches_still_get_validated (tests.test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) (replacement=0)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 69, in test_replaced_and_deleted_branches_still_get_validated
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_replaced_and_deleted_branches_still_get_validated (tests.test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) (replacement=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 69, in test_replaced_and_deleted_branches_still_get_validated
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_replaced_and_deleted_branches_still_get_validated (tests.test_core.CoreTests.test_replaced_and_deleted_branches_still_get_validated) (replacement={'safe': 1})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 69, in test_replaced_and_deleted_branches_still_get_validated
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={'__hidden': 1}, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={}, override={'__hidden': 1})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={'nested': {'__hidden': None}}, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={}, override={'nested': {'__hidden': None}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={'items': [0, [{'__hidden': 1}]]}, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_throughout_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_throughout_both_inputs) (base={}, override={'items': [0, [{'__hidden': 1}]]})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-current/work/tests/test_core.py", line 63, in test_reserved_keys_are_rejected_throughout_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 9 tests in 0.004s
+
+FAILED (failures=13, errors=9)

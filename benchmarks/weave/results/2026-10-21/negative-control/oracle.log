@@ -1,0 +1,217 @@
+test_cli (__main__.Acceptance.test_cli) ... FAIL
+test_dirty_snapshot_preserved (__main__.Acceptance.test_dirty_snapshot_preserved) ... ok
+test_invalid_roots (__main__.Acceptance.test_invalid_roots) ... 
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=None, override={}) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=None) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=[], override={}) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=[]) ... FAIL
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=4, override={}) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=4) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base='x', override={}) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=True, override={}) ... ERROR
+  test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=True) ... ERROR
+test_recursive_delete_replace_and_detach (__main__.Acceptance.test_recursive_delete_replace_and_detach) ... FAIL
+test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) ... 
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'__bad': 1}, override={}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={}, override={'__bad': 1}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'__bad': 1}}, override={'x': 0}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'__bad': 1}}, override={'x': None}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': [{'deep': [{'__bad': 1}]}]}, override={}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={}, override={'x': [{'deep': [{'__bad': 1}]}]}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'x': [{'deep': [{'__bad': 1}]}]}}, override={'x': 0}) ... FAIL
+  test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'x': [{'deep': [{'__bad': 1}]}]}}, override={'x': None}) ... FAIL
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=None, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'NoneType' object is not iterable
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=[], override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=4, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'int' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=4)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'int' object is not iterable
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base='x', override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base=True, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'bool' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 39, in test_invalid_roots
+    merge(base, override)
+  File "/tmp/weave-oracle-negative/work/configkit/core.py", line 5, in merge
+    result.update(override)
+TypeError: 'bool' object is not iterable
+
+======================================================================
+FAIL: test_cli (__main__.Acceptance.test_cli)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 54, in test_cli
+    self.assertEqual(json.loads(r.stdout), expected)
+AssertionError: {'a': {'x': None, 'z': 3}} != {'a': {'y': 2, 'z': 3}}
+- {'a': {'x': None, 'z': 3}}
+?         ^   ^^^^
+
++ {'a': {'y': 2, 'z': 3}}
+?         ^   ^
+
+
+======================================================================
+FAIL: test_invalid_roots (__main__.Acceptance.test_invalid_roots) (base={}, override=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 38, in test_invalid_roots
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_recursive_delete_replace_and_detach (__main__.Acceptance.test_recursive_delete_replace_and_detach)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 22, in test_recursive_delete_replace_and_detach
+    self.assertEqual(result, {'a': {'y': [1, {'z': 2}], 'new': [4]}, 'b': [3]})
+AssertionError: {'a': {'x': None, 'new': [4]}, 'b': [3], 'gone': None, 'missing': None} != {'a': {'y': [1, {'z': 2}], 'new': [4]}, 'b': [3]}
+- {'a': {'new': [4], 'x': None}, 'b': [3], 'gone': None, 'missing': None}
++ {'a': {'new': [4], 'y': [1, {'z': 2}]}, 'b': [3]}
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'__bad': 1}, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={}, override={'__bad': 1})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'__bad': 1}}, override={'x': 0})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'__bad': 1}}, override={'x': None})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': [{'deep': [{'__bad': 1}]}]}, override={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={}, override={'x': [{'deep': [{'__bad': 1}]}]})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'x': [{'deep': [{'__bad': 1}]}]}}, override={'x': 0})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validation_in_discarded_branches_and_lists (__main__.Acceptance.test_validation_in_discarded_branches_and_lists) (base={'x': {'x': [{'deep': [{'__bad': 1}]}]}}, override={'x': None})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/workspace/scratch/89fc913e7d2e/skills/benchmarks/weave/audit.py", line 32, in test_validation_in_discarded_branches_and_lists
+    with self.subTest(base=base, override=override), self.assertRaises(ValueError):
+                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 5 tests in 0.055s
+
+FAILED (failures=11, errors=8)

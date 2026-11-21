@@ -1,0 +1,146 @@
+..EEEEE.FFFFEFFFF
+======================================================================
+ERROR: test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) (invalid=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 41, in test_invalid_roots_raise_value_error
+    merge(invalid, {})
+  File "/tmp/weave-ab-baseline/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'NoneType' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) (invalid=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 41, in test_invalid_roots_raise_value_error
+    merge(invalid, {})
+  File "/tmp/weave-ab-baseline/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'list' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) (invalid='text')
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 41, in test_invalid_roots_raise_value_error
+    merge(invalid, {})
+  File "/tmp/weave-ab-baseline/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'str' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) (invalid=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 41, in test_invalid_roots_raise_value_error
+    merge(invalid, {})
+  File "/tmp/weave-ab-baseline/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'int' object has no attribute 'update'
+
+======================================================================
+ERROR: test_invalid_roots_raise_value_error (tests.test_core.CoreTests.test_invalid_roots_raise_value_error) (invalid=True)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 41, in test_invalid_roots_raise_value_error
+    merge(invalid, {})
+  File "/tmp/weave-ab-baseline/work/configkit/core.py", line 5, in merge
+    result.update(override)
+    ^^^^^^^^^^^^^
+AttributeError: 'bool' object has no attribute 'update'
+
+======================================================================
+ERROR: test_result_is_detached_and_inputs_are_unchanged (tests.test_core.CoreTests.test_result_is_detached_and_inputs_are_unchanged)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 31, in test_result_is_detached_and_inputs_are_unchanged
+    result['nested']['old'].append(9)
+    ~~~~~~~~~~~~~~~~^^^^^^^
+KeyError: 'old'
+
+======================================================================
+FAIL: test_recursive_merge_replacements_and_deletions (tests.test_core.CoreTests.test_recursive_merge_replacements_and_deletions)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 15, in test_recursive_merge_replacements_and_deletions
+    self.assertEqual(merge(base, override), {
+AssertionError: {'nested': {'replace': 4, 'remove': None, 'absent': No[82 chars]None} != {'nested': {'keep': 1, 'replace': 4}, 'list': [3], 'sc[13 chars]: 6}}
++ {'list': [3], 'nested': {'keep': 1, 'replace': 4}, 'scalar': {'new': 6}}
+- {'absent': None,
+-  'list': [3],
+-  'nested': {'absent': None, 'remove': None, 'replace': 4},
+-  'remove': None,
+-  'scalar': {'absent': None, 'new': 6}}
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_in_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_in_both_inputs) (invalid={'__secret': 1})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 53, in test_reserved_keys_are_rejected_in_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_in_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_in_both_inputs) (invalid={'nested': {'__secret': 1}})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 53, in test_reserved_keys_are_rejected_in_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_reserved_keys_are_rejected_in_both_inputs (tests.test_core.CoreTests.test_reserved_keys_are_rejected_in_both_inputs) (invalid={'items': [{'nested': [{'__secret': 1}]}]})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 53, in test_reserved_keys_are_rejected_in_both_inputs
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validate_base_branches_before_replacing_or_deleting (tests.test_core.CoreTests.test_validate_base_branches_before_replacing_or_deleting) (replacement=None)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 61, in test_validate_base_branches_before_replacing_or_deleting
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validate_base_branches_before_replacing_or_deleting (tests.test_core.CoreTests.test_validate_base_branches_before_replacing_or_deleting) (replacement=1)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 61, in test_validate_base_branches_before_replacing_or_deleting
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validate_base_branches_before_replacing_or_deleting (tests.test_core.CoreTests.test_validate_base_branches_before_replacing_or_deleting) (replacement=[])
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 61, in test_validate_base_branches_before_replacing_or_deleting
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+======================================================================
+FAIL: test_validate_base_branches_before_replacing_or_deleting (tests.test_core.CoreTests.test_validate_base_branches_before_replacing_or_deleting) (replacement={})
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/tmp/weave-ab-baseline/work/tests/test_core.py", line 61, in test_validate_base_branches_before_replacing_or_deleting
+    with self.assertRaises(ValueError):
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: ValueError not raised
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.003s
+
+FAILED (failures=8, errors=6)
