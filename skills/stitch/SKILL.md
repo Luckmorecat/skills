@@ -1,10 +1,10 @@
 ---
 name: stitch
-description: Land work settled in the current session with minimal primary-agent quota, delegating implementation, Codex review, and commit to one lean worker.
+description: Deliver work settled in the current session with minimal primary-agent quota, delegating implementation, Codex review, and commit to one lean worker.
 disable-model-invocation: true
 ---
 
-Land work whose intent this session settled while keeping primary-agent quota low and the main thread clean. You hold the conversation's intent and decisions; a lean worker implements, verifies, runs independent review (through Codex by default), and commits green.
+Deliver work whose intent this session settled while keeping primary-agent quota low and the main thread clean. You hold the conversation's intent and decisions; a lean worker implements, verifies, runs independent review (through Codex by default), and commits green.
 
 ## 1. Scope and brief
 

@@ -15,7 +15,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `implement` | Implement requested work and verify it green, leaving it uncommitted. |
 | `land` | Implement requested work, review it, and commit it green. |
 | `weave` | Land work settled in the current session through subagents. |
-| `stitch` | Land work settled in the current session with one lean worker and Codex review. |
+| `stitch` | Deliver work settled in the current session with one lean worker and Codex review. |
 | `next-slice` | Implement one prepared slice and checkpoint progress. |
 | `run-plan` | Orchestrate a slice plan through subagents, recovering blockers or escalating them. |
 | `run-plan-parallel` | Run independent slices of a plan concurrently in isolated worktrees, integrating each onto the target branch. |
