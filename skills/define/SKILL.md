@@ -4,13 +4,19 @@ description: Explore and grill an idea or feature until its purpose, experience,
 disable-model-invocation: true
 ---
 
-Explore the requested feature until its purpose, experience, scope, and consequential decisions are clear. Start from the user's existing context. When the direction is uncertain, contribute concrete possibilities and help choose one. A repository or commitment to build is optional.
+Explore and grill the requested idea or feature, with or without a repository. Keep the session read-only and conversational: explore and settle decisions, leaving any file edits or implementation for a later step.
 
-Grill assumptions and use concrete scenarios to uncover missing behavior, contradictions, failure cases, and tradeoffs. Recommend answers with reasons.
+Build on what the conversation and supplied docs already settle. When direction is uncertain, propose concrete possibilities and help choose one. Grill assumptions with concrete scenarios to uncover missing behavior, contradictions, failure cases, and tradeoffs.
 
-Treat decisions as a tree. Ask independent questions whose prerequisites are settled together; defer questions that depend on unanswered choices. Wait for answers before treating recommendations as decisions. When the user delegates a choice, make it and explain why.
+## Fact-checking
 
-Use numbered questions with explicit lettered choices (`A`, `B`, `C`) on separate lines so the user can answer briefly. Keep question numbers unique across rounds; restart choice letters at `A` for each question. Give each a recommendation that names its choice letter and explains its main tradeoff. When a question needs an open-ended answer, ask it directly instead of inventing choices.
+Verify facts from the codebase, docs, or web instead of asking the user. Do targeted reads and searches inline. Dispatch subagents only for broad, multi-file exploration or external research that would bloat this conversation; give each a bounded question and ask for concise findings with evidence. Finish relevant discovery before asking questions whose options depend on it.
+
+## Questions and decisions
+
+Treat decisions as a tree: batch independent questions whose prerequisites are settled, and defer branches that depend on unanswered choices. Wait for the user's reply before treating recommendations as decisions. When the user delegates a choice, make it and explain why.
+
+Write every question directly in your chat reply as numbered markdown (`Q1`, `Q2`, unique across rounds): give choice questions lettered options restarting at `A` per question and a recommendation naming the letter and its main tradeoff; ask open-ended questions as plain numbered questions when choices would be artificial.
 
 ```markdown
 ❓ **Q1 — Who can invite members?**
@@ -20,26 +26,19 @@ Use numbered questions with explicit lettered choices (`A`, `B`, `C`) on separat
 
 ➡️ **Recommended: A** — The group can grow without waiting on
 its owner, at the cost of less control over who gets invited.
-
----
-
-❓ **Q2 — When do invitations expire?**
-
-- **A.** After seven days
-- **B.** Only when revoked
-
-➡️ **Recommended: A** — Seven days limits how long an
-unused invitation grants access, at the cost of resending expired ones.
 ```
 
-The user can reply: `Q1 B; Q2 A`. Accept custom answers and modifications to choices in plain text. Record those answers before moving to dependent questions.
+Resolve in-scope choices that affect user-visible behavior, public interfaces, persistent data, security or privacy, deployment, external dependencies, ongoing cost, ownership between components, or anything hard to reverse. Surface these consequences even when a choice looks like an implementation detail. Leave cheaply reversible implementation details open, and follow clear existing codebase precedent unless changing it is in scope.
 
-Investigate facts yourself. Use subagents for independent exploration of relevant code, existing behavior, technical feasibility, and external evidence. Give each a bounded question and ask for findings with supporting evidence. Continue independent questions while they investigate; revisit dependent decisions when findings arrive.
+Distinguish settled decisions, proposals, and claims that still need evidence. User agreement settles intent; it does not prove feasibility or demand.
 
-Resolve choices within the requested scope that affect user-visible behavior, public interfaces, persistent data, security or privacy, deployment, external dependencies, ongoing cost, ownership between components, or the cost of changing direction. Surface these consequences even when the choice appears to be an implementation detail.
+## Done
 
-Distinguish settled decisions, proposals, and claims that still need evidence. User agreement settles intent; it does not prove feasibility or demand. When evidence is unavailable, identify what remains uncertain and what would resolve it.
+Continue until concrete scenarios cover the main experience and meaningful boundaries, scope and exclusions are explicit, and every known consequential choice is resolved or explicitly left open with its implications understood.
 
-Continue until concrete scenarios explain the main experience and meaningful boundaries, and every known consequential choice is resolved or explicitly left open with its implications understood. Clearly identify any open choice that prevents the feature from being fully defined.
+Finish with a conversational recap, then stop so the user chooses what happens next:
 
-Finish with a brief recap of settled decisions and remaining uncertainties.
+- **Purpose, scope, and exclusions**
+- **Key scenarios**
+- **Settled decisions** (with rationale, noting delegated choices)
+- **Open choices and unverified claims** (blocking vs non-blocking, implications, and what would resolve each)

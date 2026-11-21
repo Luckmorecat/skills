@@ -4,23 +4,26 @@ description: Explore technical approaches for a supplied contract or spec and su
 disable-model-invocation: true
 ---
 
-Turn technical uncertainty into decisions precise enough for implementation. Start from the supplied contract or spec and relevant conversation. Preserve settled intent and constraints; focus on technical choices that simplify implementation or resolve ambiguity.
+Turn technical uncertainty into decisions precise enough for implementation. Build on the supplied contract or spec and what the conversation already settles. Preserve settled intent and constraints; focus on technical choices that simplify implementation or resolve ambiguity, leaving cheaply reversible implementation details open. Keep the session read-only and conversational, leaving any file edits or implementation for a later step.
 
-Identify where libraries, tools, design patterns, or simpler structures could help satisfy the requirements. Recommend approaches for concrete needs, with reasons and tradeoffs. Keep cheaply reversible implementation details open.
+## Research and exploration
 
-Dispatch a research subagent when choosing a library, tool, design pattern, or technical mechanism. Have it research currently available solutions using primary sources, including simpler approaches that avoid an additional dependency. Assess fit against the requirements, limitations, integration cost, and maintenance where relevant.
+Cover the tracks below that affect the choice. Do targeted reads and searches inline; dispatch subagents (without editing repository files) only when external primary-source research or broad, multi-file codebase exploration would bloat this conversation. Give each subagent a bounded question and request concise findings, implications, uncertainties, and supporting references.
 
-When existing code affects the choice, dispatch a separate exploration subagent to inspect relevant behavior, interfaces, dependencies, ownership, and conventions. Treat internals being replaced as current behavior, not constraints on their replacement.
+- **External research**: when choosing a library, tool, design pattern, or technical mechanism, inspect currently available solutions using primary sources, including simpler approaches that avoid an additional dependency. Assess fit against the requirements, limitations, integration cost, and maintenance where relevant.
+- **Codebase exploration**: when existing code affects the choice, inspect relevant behavior, interfaces, dependencies, ownership, and conventions. Treat internals being replaced as current behavior, not constraints on their replacement.
 
-Give each subagent a bounded question and request concise findings, implications, uncertainties, and supporting references. Keep detailed exploration in subagent context; compare approaches and resolve decisions in the main session. Follow up on consequential claims or gaps that could change the choice.
+Finish relevant discovery before asking questions that depend on it, and follow up on consequential claims or gaps that could change the choice.
+
+## Evaluation and questions
 
 Compare credible alternatives against the contract's requirements and constraints. Favor the simplest approach that meets them. Explain why the recommendation fits and what costs or limitations it introduces; avoid manufacturing alternatives.
 
 Test the approach against concrete success, failure, and boundary scenarios. Work out responsibilities, interfaces, data flow, and failure behavior where they matter to implementation. Revise choices that expose contradictions or unnecessary complexity.
 
-Ask about unresolved consequential tradeoffs with options and a recommendation. Group independent questions and defer dependent ones until their prerequisites settle. Reuse existing decisions and delegation; otherwise wait for the user's answer before treating a recommendation as settled.
+Treat unresolved consequential tradeoffs as a decision tree: batch independent questions whose prerequisites are settled, and defer branches that depend on unanswered choices. Reuse existing decisions and delegation; otherwise wait for the user's reply before treating a recommendation as settled. When the user delegates a choice, make it and explain why.
 
-Use numbered questions with explicit lettered choices (`A`, `B`, `C`) on separate lines. Keep question numbers unique across rounds; restart choice letters at `A` for each question. Give each a recommendation that names its choice letter, ties it to the requirements or research findings, and explains its main tradeoff. Ask open-ended questions directly when choices would be artificial.
+Write every question directly in your chat reply as numbered markdown (`Q1`, `Q2`, unique across rounds): give choice questions lettered options restarting at `A` per question and a recommendation naming the letter, tying it to the requirements or research findings, and explaining its main tradeoff; ask open-ended questions directly when choices would be artificial.
 
 ```markdown
 ❓ **Q1 — How should we represent the approval workflow?**
@@ -33,8 +36,12 @@ simple transitions. A table makes allowed transitions explicit with
 little integration work; nested or parallel states could justify a library later.
 ```
 
-Accept brief replies such as `Q1 A`, custom answers, and modifications to choices. Record answers before moving to dependent questions.
+Distinguish verified facts, proposed designs, and remaining assumptions.
 
-Distinguish verified facts, proposed designs, and remaining assumptions. When a choice depends on missing evidence, identify what would resolve it and which part of the design remains uncertain.
+## Done
 
-Continue until the in-scope technical choices are resolved or explicitly open with their implementation consequences understood. Finish with a concise discussion summary of settled technical decisions, their rationale, proposed contract additions or changes, and remaining uncertainties.
+Continue until the in-scope technical choices are resolved or explicitly open with their implementation consequences understood. Finish with a conversational summary, then stop so the user chooses what happens next:
+
+- **Settled technical decisions** (with rationale, noting delegated choices)
+- **Proposed contract additions or changes**
+- **Remaining uncertainties** (affected design areas and what would resolve each)
