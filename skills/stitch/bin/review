@@ -1,0 +1,1900 @@
+#!/usr/bin/env python3
+"""review: deterministic review runner for the stitch skill.
+
+Python 3.9+, standard library only. Agents keep every judgment (triage, fixes,
+escalation, and runtime-native fallback subagents); this CLI owns config,
+prompt assembly, read-only subprocess execution, retries, resume fallback,
+JSONL extraction, and session receipts.
+"""
+from __future__ import annotations
+
+import argparse
+import contextlib
+import copy
+import datetime
+import fcntl
+import json
+import os
+import re
+import shlex
+import shutil
+import string
+import subprocess
+import sys
+import tempfile
+from typing import Any
+
+SCHEMA_VERSION = 1
+STATE_FILE = "state.json"
+
+DEFAULT_CONFIG: dict[str, Any] = {
+    "backend": "codex",
+    "model": "gpt-6.2-sol",
+    "effort": "xhigh",
+    "thread_mode": "resume",
+    "max_rounds": 3,
+    "extended_max_rounds": 5,
+    "timeout_seconds": 900,
+    "codex": {
+        "bin": "codex",
+        "extra_args": [],
+    },
+    "command": {
+        "start": None,
+        "reply": None,
+    },
+}
+
+VALID_BACKENDS = ("codex", "command")
+VALID_THREAD_MODES = ("resume", "fresh")
+TOP_LEVEL_CONFIG_KEYS = frozenset(DEFAULT_CONFIG.keys())
+CODEX_CONFIG_KEYS = frozenset(("bin", "extra_args"))
+COMMAND_CONFIG_KEYS = frozenset(("start", "reply"))
+COMMAND_TEMPLATE_PLACEHOLDERS = (
+    "repo",
+    "base",
+    "session",
+    "round",
+    "prompt_file",
+    "output_file",
+    "log_file",
+    "model",
+    "effort",
+    "thread_id",
+)
+
+VERDICT_LINE_RE = re.compile(
+    r"^\s*(?:\*\*|__|`+)?VERDICT:\s*(APPROVE|CHANGES)(?:\*\*|__|`+)?\s*$",
+    re.IGNORECASE,
+)
+LIST_PREFIX_RE = r"(?:(?:[-*+]|\d+[.)])\s+)?"
+FINDING_LINE_RE = re.compile(
+    rf"^\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?R\d+(?:\*\*|__|`+)?\s+\[(blocker|should|nit)\](?:\s|:|$)",
+    re.IGNORECASE,
+)
+RESOLVED_LINE_RE = re.compile(
+    rf"^\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?R\d+(?:\*\*|__|`+)?\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?resolved\b",
+    re.IGNORECASE,
+)
+STILL_OPEN_LINE_RE = re.compile(
+    rf"^(?P<head>\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?R\d+(?:\*\*|__|`+)?"
+    r"(?:\s*(?:,\s*and\b|,|\band\b)\s*(?:\*\*|__|`+)?R\d+(?:\*\*|__|`+)?)*"
+    r"(?:\s+\[(?:blocker|should|nit)\])?)"
+    r"\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?still\s+open\b",
+    re.IGNORECASE,
+)
+FINDING_ID_RE = re.compile(r"\bR\d+\b", re.IGNORECASE)
+
+UNAVAILABLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "authentication error",
+        re.compile(
+            r"not\s+logged\s+in|login\s+required|please\s+log\s*in|codex\s+login|"
+            r"unauthorized|\b401\b|invalid\s+api[\s_-]*key|missing\s+api[\s_-]*key|"
+            r"authentication\s+failed|sign\s+in\s+required",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "unsupported or rejected model",
+        re.compile(
+            r"model[\s_-]+not[\s_-]+found|unsupported\s+model|unknown\s+model|invalid\s+model|"
+            r"model\b[^\n]*\bdoes\s+not\s+exist|model\b[^\n]*\bnot\s+available|"
+            r"model\b[^\n]*\bnot\s+supported",
+            re.IGNORECASE,
+        ),
+    ),
+    (
+        "network or sandbox blocked",
+        re.compile(
+            r"operation\s+not\s+permitted|network\s+is\s+unreachable|"
+            r"could\s+not\s+resolve\s+host|name\s+or\s+service\s+not\s+known|"
+            r"nodename\s+nor\s+servname|failed\s+to\s+lookup\s+address|"
+            r"connection\s+refused|\benotfound\b|\beai_again\b|\beconnrefused\b|"
+            r"\benetunreach\b|network\s+(?:access\s+)?(?:is\s+)?disabled|"
+            r"sandbox\b[^\n]*\b(?:block|denied|prevent|disallow)",
+            re.IGNORECASE,
+        ),
+    ),
+)
+
+FALLBACK_HINT = "Read FALLBACK.md and run Worker fallback if nested subagents are available, else return uncommitted for Orchestrator fallback."
+
+
+class UsageError(Exception):
+    """Caller invocation, input, or configuration error (exits 2, stderr only)."""
+
+
+def utc_now() -> str:
+    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def default_config_path() -> str:
+    xdg = os.environ.get("XDG_CONFIG_HOME")
+    base = xdg if xdg else os.path.join(os.path.expanduser("~"), ".config")
+    return os.path.join(base, "stitch", "review.json")
+
+
+def parse_positive_int(value: Any, label: str) -> int:
+    if isinstance(value, bool):
+        raise UsageError(f"{label} must be a positive integer")
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError) as exc:
+        raise UsageError(f"{label} must be a positive integer: {value!r}") from exc
+    if parsed < 1:
+        raise UsageError(f"{label} must be >= 1, got {parsed}")
+    return parsed
+
+
+def validate_str_list(value: Any, label: str, allow_empty: bool = True) -> list[str]:
+    if not isinstance(value, list) or not all(isinstance(item, str) for item in value):
+        raise UsageError(f"{label} must be a list of strings")
+    if not allow_empty and not value:
+        raise UsageError(f"{label} must be a non-empty list of strings")
+    return list(value)
+
+
+ALLOWED_CODEX_BOOL_FLAGS = frozenset(
+    (
+        "--ephemeral",
+        "--skip-git-repo-check",
+        "--ignore-user-config",
+        "--strict-config",
+        "--oss",
+    )
+)
+ALLOWED_CODEX_VALUE_FLAGS = frozenset(
+    (
+        "--enable",
+        "--disable",
+        "--local-provider",
+        "--color",
+    )
+)
+
+
+def validate_codex_extra_args(extra_args: list[str]) -> list[str]:
+    idx = 0
+    while idx < len(extra_args):
+        tok = extra_args[idx]
+        if tok in ALLOWED_CODEX_BOOL_FLAGS:
+            idx += 1
+            continue
+        if tok in ALLOWED_CODEX_VALUE_FLAGS:
+            if idx + 1 >= len(extra_args) or not extra_args[idx + 1].strip():
+                raise UsageError(f"flag {tok!r} in codex.extra_args requires a non-empty value")
+            idx += 2
+            continue
+        if "=" in tok:
+            flag, val = tok.split("=", 1)
+            if flag in ALLOWED_CODEX_VALUE_FLAGS:
+                if not val.strip():
+                    raise UsageError(f"flag {tok!r} in codex.extra_args requires a non-empty value")
+                idx += 1
+                continue
+        allowed = ", ".join(sorted(ALLOWED_CODEX_BOOL_FLAGS | ALLOWED_CODEX_VALUE_FLAGS))
+        raise UsageError(
+            f"disallowed flag {tok!r} in codex.extra_args (only read-only-safe flags are allowed: {allowed})"
+        )
+    return extra_args
+
+
+def load_config_file(path: str) -> dict[str, Any]:
+    try:
+        with open(path, "r", encoding="utf-8") as fh:
+            raw = json.load(fh)
+    except FileNotFoundError as exc:
+        raise UsageError(f"config file not found: {path}") from exc
+    except OSError as exc:
+        raise UsageError(f"cannot read config file {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise UsageError(f"invalid JSON in config file {path}: {exc}") from exc
+
+    if not isinstance(raw, dict):
+        raise UsageError(f"config file {path} must contain a JSON object")
+
+    unknown = sorted(set(raw.keys()) - TOP_LEVEL_CONFIG_KEYS)
+    if unknown:
+        raise UsageError(f"unknown config key(s) in {path}: {', '.join(unknown)}")
+
+    if "codex" in raw:
+        if not isinstance(raw["codex"], dict):
+            raise UsageError(f"config key 'codex' in {path} must be an object")
+        bad_codex = sorted(set(raw["codex"].keys()) - CODEX_CONFIG_KEYS)
+        if bad_codex:
+            raise UsageError(f"unknown codex config key(s) in {path}: {', '.join(bad_codex)}")
+
+    if "command" in raw:
+        if not isinstance(raw["command"], dict):
+            raise UsageError(f"config key 'command' in {path} must be an object")
+        bad_cmd = sorted(set(raw["command"].keys()) - COMMAND_CONFIG_KEYS)
+        if bad_cmd:
+            raise UsageError(f"unknown command config key(s) in {path}: {', '.join(bad_cmd)}")
+
+    return raw
+
+
+def resolve_config(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, str], str | None]:
+    cfg = copy.deepcopy(DEFAULT_CONFIG)
+    sources: dict[str, str] = {
+        "backend": "default",
+        "model": "default",
+        "effort": "default",
+        "thread_mode": "default",
+        "max_rounds": "default",
+        "extended_max_rounds": "default",
+        "timeout_seconds": "default",
+        "codex.bin": "default",
+        "codex.extra_args": "default",
+        "command.start": "default",
+        "command.reply": "default",
+    }
+
+    explicit_config = getattr(args, "config", None)
+    env_config = os.environ.get("STITCH_REVIEW_CONFIG")
+    config_path: str | None = None
+    file_data: dict[str, Any] = {}
+
+    if explicit_config:
+        config_path = os.path.abspath(os.path.expanduser(explicit_config))
+        file_data = load_config_file(config_path)
+    elif env_config:
+        config_path = os.path.abspath(os.path.expanduser(env_config))
+        file_data = load_config_file(config_path)
+    else:
+        candidate = default_config_path()
+        if os.path.exists(candidate):
+            config_path = candidate
+            file_data = load_config_file(config_path)
+
+    for key in ("backend", "model", "effort", "thread_mode", "max_rounds", "extended_max_rounds", "timeout_seconds"):
+        if key in file_data:
+            cfg[key] = file_data[key]
+            sources[key] = f"file:{config_path}"
+
+    if "codex" in file_data:
+        for subkey in ("bin", "extra_args"):
+            if subkey in file_data["codex"]:
+                cfg["codex"][subkey] = file_data["codex"][subkey]
+                sources[f"codex.{subkey}"] = f"file:{config_path}"
+
+    if "command" in file_data:
+        for subkey in ("start", "reply"):
+            if subkey in file_data["command"]:
+                cfg["command"][subkey] = file_data["command"][subkey]
+                sources[f"command.{subkey}"] = f"file:{config_path}"
+
+    env_map = (
+        ("STITCH_REVIEW_BACKEND", ("backend",)),
+        ("STITCH_REVIEW_MODEL", ("model",)),
+        ("STITCH_REVIEW_EFFORT", ("effort",)),
+        ("STITCH_REVIEW_THREAD_MODE", ("thread_mode",)),
+        ("STITCH_REVIEW_MAX_ROUNDS", ("max_rounds",)),
+        ("STITCH_REVIEW_EXTENDED_MAX_ROUNDS", ("extended_max_rounds",)),
+        ("STITCH_REVIEW_TIMEOUT", ("timeout_seconds",)),
+        ("STITCH_REVIEW_CODEX_BIN", ("codex", "bin")),
+    )
+    for env_name, target in env_map:
+        raw_val = os.environ.get(env_name)
+        if raw_val is not None and raw_val != "":
+            if len(target) == 1:
+                cfg[target[0]] = raw_val
+                sources[target[0]] = f"env:{env_name}"
+            else:
+                cfg[target[0]][target[1]] = raw_val
+                sources[f"{target[0]}.{target[1]}"] = f"env:{env_name}"
+
+    cli_map = (
+        ("backend", ("backend",)),
+        ("model", ("model",)),
+        ("effort", ("effort",)),
+        ("thread_mode", ("thread_mode",)),
+        ("max_rounds", ("max_rounds",)),
+        ("timeout", ("timeout_seconds",)),
+        ("codex_bin", ("codex", "bin")),
+    )
+    for attr, target in cli_map:
+        val = getattr(args, attr, None)
+        if val is not None:
+            if len(target) == 1:
+                cfg[target[0]] = val
+                sources[target[0]] = "cli"
+            else:
+                cfg[target[0]][target[1]] = val
+                sources[f"{target[0]}.{target[1]}"] = "cli"
+
+    # Validate final resolved config
+    if not isinstance(cfg["backend"], str) or cfg["backend"] not in VALID_BACKENDS:
+        raise UsageError(f"unsupported backend {cfg['backend']!r}; expected one of: {', '.join(VALID_BACKENDS)}")
+    if not isinstance(cfg["model"], str) or not cfg["model"].strip():
+        raise UsageError("model must be a non-empty string")
+    if not isinstance(cfg["effort"], str) or not cfg["effort"].strip():
+        raise UsageError("effort must be a non-empty string")
+    if not isinstance(cfg["thread_mode"], str) or cfg["thread_mode"] not in VALID_THREAD_MODES:
+        raise UsageError(
+            f"unsupported thread_mode {cfg['thread_mode']!r}; expected one of: {', '.join(VALID_THREAD_MODES)}"
+        )
+
+    cfg["max_rounds"] = parse_positive_int(cfg["max_rounds"], "max_rounds")
+    cfg["extended_max_rounds"] = parse_positive_int(cfg["extended_max_rounds"], "extended_max_rounds")
+    if cfg["max_rounds"] > cfg["extended_max_rounds"]:
+        raise UsageError(
+            f"max_rounds ({cfg['max_rounds']}) exceeds extended_max_rounds ({cfg['extended_max_rounds']}); "
+            "raise extended_max_rounds in config or STITCH_REVIEW_EXTENDED_MAX_ROUNDS to allow a higher ceiling"
+        )
+    cfg["timeout_seconds"] = parse_positive_int(cfg["timeout_seconds"], "timeout_seconds")
+
+    if not isinstance(cfg["codex"]["bin"], str) or not cfg["codex"]["bin"].strip():
+        raise UsageError("codex.bin must be a non-empty string")
+    cfg["codex"]["extra_args"] = validate_codex_extra_args(
+        validate_str_list(cfg["codex"]["extra_args"], "codex.extra_args", allow_empty=True)
+    )
+
+    sample_mapping = {key: f"<{key}>" for key in COMMAND_TEMPLATE_PLACEHOLDERS}
+    if cfg["command"]["start"] is not None:
+        cfg["command"]["start"] = validate_str_list(cfg["command"]["start"], "command.start", allow_empty=False)
+        format_command_template(cfg["command"]["start"], sample_mapping)
+    if cfg["command"]["reply"] is not None:
+        cfg["command"]["reply"] = validate_str_list(cfg["command"]["reply"], "command.reply", allow_empty=False)
+        format_command_template(cfg["command"]["reply"], sample_mapping)
+    if cfg["backend"] == "command" and not cfg["command"]["start"]:
+        raise UsageError("backend 'command' requires command.start in config file")
+
+    return cfg, sources, config_path
+
+
+def atomic_write_text(path: str, content: str) -> None:
+    parent = os.path.dirname(path) or "."
+    os.makedirs(parent, exist_ok=True)
+    tmp_path = f"{path}.tmp.{os.getpid()}"
+    with open(tmp_path, "w", encoding="utf-8", newline="") as fh:
+        fh.write(content)
+    os.replace(tmp_path, path)
+
+
+def atomic_write_json(path: str, data: dict[str, Any]) -> None:
+    atomic_write_text(path, json.dumps(data, indent=2, sort_keys=False) + "\n")
+
+
+def read_text_arg(
+    inline_val: str | None,
+    file_val: str | None,
+    label: str,
+    required: bool,
+    stdin_used: list[bool],
+    preserve_verbatim: bool = False,
+) -> str | None:
+    if inline_val is not None and file_val is not None:
+        raise UsageError(f"pass either --{label} or --{label}-file, not both")
+    if inline_val is not None:
+        text = inline_val
+    elif file_val is not None:
+        if file_val == "-":
+            if stdin_used[0]:
+                raise UsageError("stdin ('-') can only be used for one input argument")
+            stdin_used[0] = True
+            if preserve_verbatim and hasattr(sys.stdin, "buffer"):
+                text = sys.stdin.buffer.read().decode("utf-8")
+            else:
+                text = sys.stdin.read()
+        else:
+            try:
+                open_kwargs: dict[str, Any] = {"encoding": "utf-8"}
+                if preserve_verbatim:
+                    open_kwargs["newline"] = ""
+                with open(file_val, "r", **open_kwargs) as fh:
+                    text = fh.read()
+            except OSError as exc:
+                raise UsageError(f"cannot read --{label}-file {file_val}: {exc}") from exc
+    else:
+        if required:
+            raise UsageError(f"--{label} or --{label}-file is required")
+        return None
+
+    if required and not text.strip():
+        raise UsageError(f"{label} must not be empty")
+    return text if preserve_verbatim else text.rstrip("\n")
+
+
+def is_subpath(child: str, parent: str) -> bool:
+    child_real = os.path.realpath(child)
+    parent_real = os.path.realpath(parent)
+    try:
+        return os.path.commonpath([child_real, parent_real]) == parent_real
+    except ValueError:
+        return False
+
+
+def normalize_repo_paths(paths: list[str], repo_path: str) -> list[str]:
+    repo_real = os.path.realpath(repo_path)
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw in paths:
+        if not raw:
+            continue
+        item = raw
+        if os.path.isabs(item) and is_subpath(item, repo_real):
+            item = os.path.relpath(os.path.realpath(item), repo_real)
+        item = item.replace(os.sep, "/")
+        if item.startswith("./"):
+            item = item[2:]
+        if item and item not in seen:
+            seen.add(item)
+            result.append(item)
+    return result
+
+
+def discover_repo_rules(repo_path: str, owned_paths: list[str]) -> list[str]:
+    candidates_order: list[str] = []
+    seen: set[str] = set()
+
+    def check_dir(rel_dir: str) -> None:
+        abs_dir = repo_path if not rel_dir else os.path.join(repo_path, rel_dir)
+        for filename in ("AGENTS.md", "CLAUDE.md"):
+            full = os.path.join(abs_dir, filename)
+            if os.path.isfile(full):
+                rel = filename if not rel_dir else f"{rel_dir}/{filename}"
+                if rel not in seen:
+                    seen.add(rel)
+                    candidates_order.append(rel)
+
+    check_dir("")
+    copilot_rel = ".github/copilot-instructions.md"
+    if os.path.isfile(os.path.join(repo_path, ".github", "copilot-instructions.md")):
+        seen.add(copilot_rel)
+        candidates_order.append(copilot_rel)
+
+    for rel_path in owned_paths:
+        dirname = os.path.dirname(rel_path)
+        if not dirname or dirname == ".":
+            continue
+        parts = [p for p in dirname.split("/") if p and p != "."]
+        cur = ""
+        for part in parts:
+            cur = part if not cur else f"{cur}/{part}"
+            check_dir(cur)
+
+    return candidates_order
+
+
+def validate_git_base(repo_path: str, base: str) -> None:
+    try:
+        inside = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "--is-inside-work-tree"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise UsageError(f"failed to verify git repository {repo_path}: {exc}") from exc
+    if inside.returncode != 0 or inside.stdout.strip() != "true":
+        raise UsageError(f"--repo is not inside a git working tree: {repo_path}")
+
+    try:
+        check = subprocess.run(
+            ["git", "-C", repo_path, "rev-parse", "--verify", "--quiet", f"{base}^{{tree}}"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise UsageError(f"failed to verify --base {base!r} in {repo_path}: {exc}") from exc
+    if check.returncode != 0:
+        raise UsageError(f"--base {base!r} does not resolve to a valid git commit or tree in {repo_path}")
+
+
+def split_tracked_and_untracked(
+    repo_path: str, base: str, owned_paths: list[str]
+) -> tuple[list[str], list[str], bool]:
+    """Return (diff_paths, untracked, git_checked).
+
+    Paths removed from the index via `git rm --cached` remain untracked on disk
+    while still existing in `base`; include them in both diff_paths and untracked.
+    """
+    if not owned_paths:
+        return [], [], False
+    try:
+        proc = subprocess.run(
+            ["git", "--literal-pathspecs", "-C", repo_path, "ls-files", "-z", "--others", "--", *owned_paths],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return owned_paths, [], False
+
+    if proc.returncode != 0:
+        return owned_paths, [], False
+
+    untracked_set = {entry for entry in proc.stdout.split("\0") if entry}
+    in_base_set: set[str] = set()
+    if untracked_set:
+        try:
+            base_proc = subprocess.run(
+                [
+                    "git",
+                    "--literal-pathspecs",
+                    "-C",
+                    repo_path,
+                    "ls-tree",
+                    "-r",
+                    "--name-only",
+                    "-z",
+                    base,
+                    "--",
+                    *owned_paths,
+                ],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+                timeout=15,
+                check=False,
+            )
+            if base_proc.returncode != 0:
+                return owned_paths, [], False
+            in_base_set = {entry for entry in base_proc.stdout.split("\0") if entry}
+        except (OSError, subprocess.TimeoutExpired):
+            return owned_paths, [], False
+
+    diff_paths = [p for p in owned_paths if (p not in untracked_set) or (p in in_base_set)]
+    untracked = [p for p in owned_paths if p in untracked_set]
+    return diff_paths, untracked, True
+
+
+def format_git_pathspec(path: str) -> str:
+    if path.startswith(":") or any(ch in path for ch in "*?["):
+        return shlex.quote(f":(literal){path}")
+    return shlex.quote(path)
+
+
+def format_display_path(path: str) -> str:
+    if path != path.strip() or "," in path:
+        return shlex.quote(path)
+    return path
+
+
+def render_inspect_lines(repo_path: str, base: str, owned_paths: list[str]) -> list[str]:
+    tracked, untracked, git_checked = split_tracked_and_untracked(repo_path, base, owned_paths)
+    lines: list[str] = []
+    if git_checked:
+        if tracked:
+            quoted = " ".join(format_git_pathspec(p) for p in tracked)
+            lines.append(f"- git diff {shlex.quote(base)} -- {quoted}")
+        if untracked:
+            formatted = ", ".join(format_display_path(p) for p in untracked)
+            lines.append(f"- read untracked owned paths directly: {formatted}")
+    else:
+        quoted = " ".join(format_git_pathspec(p) for p in owned_paths)
+        lines.append(f"- git diff {shlex.quote(base)} -- {quoted}")
+        lines.append("- read any untracked owned paths directly")
+    return lines
+
+
+def build_round1_prompt(
+    repo_path: str,
+    base: str,
+    owned_paths: list[str],
+    rules: list[str],
+    evidence: str,
+    brief: str,
+) -> str:
+    rules_line = ", ".join(rules) if rules else "none found"
+    inspect_lines = render_inspect_lines(repo_path, base, owned_paths)
+    inspect_lines.append("- read surrounding callers/code and the listed repo rules")
+    inspect_block = "\n".join(inspect_lines)
+    brief_sep = "\n" if brief.endswith("\n") else "\n\n"
+
+    return (
+        "Review only. Do not edit, commit, push, or start subagents.\n"
+        f"Repo: {repo_path}\n"
+        f"Base: {base}\n"
+        f"Owned paths: {', '.join(owned_paths)}\n"
+        f"Repo rules: {rules_line}\n"
+        "Verification evidence:\n"
+        f"{evidence}\n\n"
+        "Brief (verbatim):\n"
+        f"{brief}{brief_sep}"
+        "Inspect:\n"
+        f"{inspect_block}\n\n"
+        "Check both code quality and brief compliance in one pass:\n"
+        "1. Bugs, broken callers, regressions, and edge cases within intent.\n"
+        "2. Mismatch with the brief's acceptance, exclusions, or settled decisions; flag missing proof where passing commands alone do not demonstrate acceptance.\n"
+        "3. Breaches of documented repo rules; skip style unless it hides a bug.\n"
+        "4. Smallest-change discipline: flag dead code, tests, or guards the brief does not need.\n\n"
+        "Severity:\n"
+        "- blocker = acceptance unmet, intended case wrong, security/data-loss defect, or mandatory repo rule breach.\n"
+        "- should = real bug callers will hit in intent, or missing proof for an acceptance item.\n"
+        "- nit = rare edge case, small perf, extra compat, style, or out-of-scope suggestion.\n\n"
+        "Reply concisely (findings only; omit praise):\n"
+        "VERDICT: APPROVE or CHANGES\n"
+        "R1 [blocker|should|nit] <file>:<line> <claim>. Fix: <smallest suggestion>\n"
+    )
+
+
+def build_round_n_prompt(
+    round_num: int,
+    repo_path: str,
+    base: str,
+    owned_paths: list[str],
+    changed_paths: list[str],
+    ledger: str,
+    evidence: str,
+) -> str:
+    changed_line = (
+        ", ".join(changed_paths)
+        if changed_paths
+        else "none (no files modified since previous round)"
+    )
+    inspect_block = "\n".join(render_inspect_lines(repo_path, base, owned_paths))
+    return (
+        f"Round {round_num} review update.\n\n"
+        "Ledger:\n"
+        f"{ledger}\n\n"
+        f"Paths modified or added since previous round: {changed_line}\n"
+        "Inspect:\n"
+        f"{inspect_block}\n\n"
+        "Updated verification evidence:\n"
+        f"{evidence}\n\n"
+        "Review open IDs and changed code only. Mark each open ID `resolved` or "
+        "`still open: <reason>`, report any new defect introduced by the fixes, "
+        "and end with `VERDICT: APPROVE` or `VERDICT: CHANGES`.\n"
+    )
+
+
+def unwrap_error_payload(raw: Any, outer: dict[str, Any] | None = None) -> str | None:
+    parts: list[str] = []
+    codes: list[str] = []
+
+    def collect(obj: Any) -> None:
+        if isinstance(obj, str):
+            cleaned = obj.strip()
+            if not cleaned:
+                return
+            if cleaned.startswith("{"):
+                try:
+                    parsed = json.loads(cleaned)
+                except json.JSONDecodeError:
+                    parts.append(cleaned)
+                    return
+                if isinstance(parsed, dict):
+                    collect(parsed)
+                    return
+            parts.append(cleaned)
+        elif isinstance(obj, dict):
+            code = obj.get("code")
+            if isinstance(code, str) and code.strip():
+                codes.append(code.strip())
+            status = obj.get("status")
+            if isinstance(status, int) and not isinstance(status, bool):
+                codes.append(str(status))
+            err = obj.get("error")
+            if err is not None:
+                collect(err)
+            msg = obj.get("message")
+            if isinstance(msg, str) and msg.strip():
+                collect(msg)
+
+    if outer is not None:
+        code = outer.get("code")
+        if isinstance(code, str) and code.strip():
+            codes.append(code.strip())
+        status = outer.get("status")
+        if isinstance(status, int) and not isinstance(status, bool):
+            codes.append(str(status))
+        outer_msg = outer.get("message")
+        if isinstance(outer_msg, str) and outer_msg.strip() and outer_msg is not raw:
+            collect(outer_msg)
+    collect(raw)
+
+    if not parts and not codes:
+        return None
+    msg_text = "; ".join(dict.fromkeys(parts))
+    extra = list(dict.fromkeys(codes))
+    if msg_text and extra:
+        return f"{msg_text} ({', '.join(extra)})"
+    return msg_text or ", ".join(extra)
+
+
+def parse_codex_jsonl(jsonl_path: str) -> tuple[str | None, dict[str, Any] | None, list[str]]:
+    """Extract (thread_id, usage, error_messages) from codex exec --json output."""
+    thread_id: str | None = None
+    usage_events: list[dict[str, Any]] = []
+    errors: list[str] = []
+
+    if not os.path.isfile(jsonl_path):
+        return None, None, []
+
+    with open(jsonl_path, "r", encoding="utf-8", errors="replace") as fh:
+        for raw_line in fh:
+            line = raw_line.strip()
+            if not line or not line.startswith("{"):
+                continue
+            try:
+                event = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(event, dict):
+                continue
+
+            etype = event.get("type")
+            if etype == "thread.started":
+                tid = event.get("thread_id")
+                if isinstance(tid, str) and tid.strip():
+                    thread_id = tid.strip()
+            elif etype == "turn.completed":
+                usage = event.get("usage")
+                if isinstance(usage, dict) and usage:
+                    usage_events.append(usage)
+            elif etype == "error":
+                unwrapped = unwrap_error_payload(event.get("message"), outer=event)
+                if unwrapped:
+                    errors.append(unwrapped)
+            elif etype == "turn.failed":
+                unwrapped = unwrap_error_payload(event.get("error"), outer=event)
+                if unwrapped:
+                    errors.append(unwrapped)
+
+    usage_merged: dict[str, Any] | None = None
+    if len(usage_events) == 1:
+        usage_merged = usage_events[0]
+    elif len(usage_events) > 1:
+        if all(
+            is_monotonic_usage_ge(usage_events[i], usage_events[i - 1])
+            for i in range(1, len(usage_events))
+        ):
+            usage_merged = usage_events[-1]
+        else:
+            merged: dict[str, Any] = {}
+            for ev in usage_events:
+                for k, v in ev.items():
+                    if is_numeric_usage_value(v):
+                        merged[k] = merged.get(k, 0) + v
+                    else:
+                        merged[k] = v
+            usage_merged = merged
+
+    return thread_id, usage_merged, errors
+
+
+def parse_review_response(text: str) -> tuple[str | None, dict[str, int], bool, str | None]:
+    """Return (verdict, findings_summary, nit_only, error_reason).
+
+    Ignores fenced code blocks when scanning for VERDICT lines.
+    """
+    stripped = text.strip()
+    if not stripped:
+        return None, {"blocker": 0, "should": 0, "nit": 0, "still_open": 0}, False, "empty review output"
+
+    verdicts: set[str] = set()
+    counts = {"blocker": 0, "should": 0, "nit": 0, "still_open": 0}
+    in_fence = False
+    unclassified_lines = 0
+
+    for line in stripped.splitlines():
+        s = line.strip()
+        if s.startswith("```"):
+            in_fence = not in_fence
+            continue
+        if in_fence or not s:
+            continue
+
+        vm = VERDICT_LINE_RE.match(s)
+        if vm:
+            verdicts.add(vm.group(1).upper())
+            continue
+
+        fm = FINDING_LINE_RE.match(s)
+        if fm:
+            sev = fm.group(1).lower()
+            counts[sev] += 1
+            sm = STILL_OPEN_LINE_RE.match(s)
+            if sm:
+                counts["still_open"] += max(1, len(FINDING_ID_RE.findall(sm.group("head"))))
+            continue
+
+        sm = STILL_OPEN_LINE_RE.match(s)
+        if sm:
+            counts["still_open"] += max(1, len(FINDING_ID_RE.findall(sm.group("head"))))
+            continue
+
+        if RESOLVED_LINE_RE.match(s):
+            continue
+
+        unclassified_lines += 1
+
+    if not verdicts:
+        return None, counts, False, "missing VERDICT: line"
+    if len(verdicts) > 1:
+        return None, counts, False, "ambiguous output containing both APPROVE and CHANGES verdicts"
+
+    verdict = next(iter(verdicts))
+    if verdict == "APPROVE" and (counts["blocker"] > 0 or counts["should"] > 0 or counts["still_open"] > 0):
+        return (
+            None,
+            counts,
+            False,
+            "contradictory APPROVE verdict alongside blocker, should, or still-open findings",
+        )
+    nit_only = (
+        verdict == "CHANGES"
+        and counts["blocker"] == 0
+        and counts["should"] == 0
+        and counts["still_open"] == 0
+        and counts["nit"] > 0
+        and unclassified_lines == 0
+    )
+    return verdict, counts, nit_only, None
+
+
+def classify_unavailable_error(stderr_text: str, jsonl_errors: list[str]) -> str | None:
+    lines = [line.strip() for part in [stderr_text, *jsonl_errors] if part for line in part.splitlines() if line.strip()]
+    if not lines:
+        return None
+    combined = "\n".join(lines)
+    for label, pattern in UNAVAILABLE_PATTERNS:
+        if pattern.search(combined):
+            matched_line = next((line for line in lines if pattern.search(line)), lines[0])
+            if len(matched_line) > 200:
+                matched_line = matched_line[:197] + "..."
+            return f"{label}: {matched_line}"
+    return None
+
+
+def summarize_error(returncode: int | None, stderr_text: str, jsonl_errors: list[str], detail: str | None) -> str:
+    if detail:
+        return detail
+    for source in (*jsonl_errors, *(stderr_text.splitlines() if stderr_text else [])):
+        cleaned = source.strip()
+        if cleaned:
+            if len(cleaned) > 200:
+                cleaned = cleaned[:197] + "..."
+            return f"exit {returncode}: {cleaned}" if returncode is not None else cleaned
+    return f"reviewer exited with code {returncode}"
+
+
+def archive_attempt_files(paths: dict[str, str], round_num: int, attempt_idx: int) -> None:
+    for path in paths.values():
+        if not path or not os.path.exists(path):
+            continue
+        directory, name = os.path.split(path)
+        prefix = f"r{round_num}."
+        if name.startswith(prefix):
+            archived = os.path.join(directory, f"r{round_num}-attempt{attempt_idx}.{name[len(prefix):]}")
+            os.replace(path, archived)
+
+
+def format_command_template(template: list[str], mapping: dict[str, str]) -> list[str]:
+    formatter = string.Formatter()
+    rendered: list[str] = []
+    for token in template:
+        try:
+            for _, field_name, _, conversion in formatter.parse(token):
+                if field_name is None:
+                    continue
+                if field_name not in mapping:
+                    raise UsageError(
+                        f"invalid or unknown placeholder {{{field_name}}} in command template token {token!r}"
+                    )
+                if conversion not in (None, "s", "r", "a"):
+                    raise UsageError(
+                        f"invalid conversion !{conversion} in command template token {token!r}"
+                    )
+            rendered.append(token.format(**mapping))
+        except UsageError:
+            raise
+        except (KeyError, ValueError, IndexError, AttributeError) as exc:
+            raise UsageError(f"malformed command template token {token!r}: {exc}") from exc
+    if not rendered or not rendered[0].strip():
+        raise UsageError("command template executable (first element) must not be empty")
+    return rendered
+
+
+def run_single_invocation(
+    cfg: dict[str, Any],
+    repo_path: str,
+    base: str,
+    session_dir: str,
+    round_num: int,
+    prompt_path: str,
+    prompt_text: str,
+    resume_thread_id: str | None,
+    use_reply_mode: bool = False,
+) -> dict[str, Any]:
+    backend = cfg["backend"]
+    model = cfg["model"]
+    effort = cfg["effort"]
+    timeout_seconds = cfg["timeout_seconds"]
+
+    response_path = os.path.join(session_dir, f"r{round_num}.md")
+    stderr_path = os.path.join(session_dir, f"r{round_num}.stderr.log")
+    log_path = os.path.join(
+        session_dir,
+        f"r{round_num}.jsonl" if backend == "codex" else f"r{round_num}.stdout.log",
+    )
+
+    for stale in (response_path, stderr_path, log_path):
+        if os.path.exists(stale):
+            os.remove(stale)
+
+    artifacts = {
+        "prompt": prompt_path,
+        "response": response_path,
+        "log": log_path,
+        "stderr": stderr_path,
+    }
+
+    if backend == "codex":
+        codex_bin = cfg["codex"]["bin"]
+        extra_args = cfg["codex"]["extra_args"]
+        if use_reply_mode and resume_thread_id:
+            cmd = [
+                codex_bin,
+                "exec",
+                "resume",
+                resume_thread_id,
+                "-m",
+                model,
+                "-c",
+                f"model_reasoning_effort={effort}",
+                "-c",
+                'sandbox_mode="read-only"',
+                "--json",
+                "-o",
+                response_path,
+                *extra_args,
+                prompt_text,
+            ]
+        else:
+            cmd = [
+                codex_bin,
+                "exec",
+                "-C",
+                repo_path,
+                "-m",
+                model,
+                "-c",
+                f"model_reasoning_effort={effort}",
+                "-s",
+                "read-only",
+                "--json",
+                "-o",
+                response_path,
+                *extra_args,
+                prompt_text,
+            ]
+    else:
+        template = cfg["command"]["reply"] if (use_reply_mode and cfg["command"]["reply"]) else cfg["command"]["start"]
+        cmd = format_command_template(
+            template,
+            {
+                "repo": repo_path,
+                "base": base,
+                "session": session_dir,
+                "round": str(round_num),
+                "prompt_file": prompt_path,
+                "output_file": response_path,
+                "log_file": log_path,
+                "model": model,
+                "effort": effort,
+                "thread_id": resume_thread_id or "",
+            },
+        )
+
+    proc: subprocess.CompletedProcess[Any] | None = None
+    timed_out = False
+    try:
+        with open(log_path, "w", encoding="utf-8") as log_fh, open(stderr_path, "w", encoding="utf-8") as err_fh:
+            proc = subprocess.run(
+                cmd,
+                cwd=repo_path,
+                stdin=subprocess.DEVNULL,
+                stdout=log_fh,
+                stderr=err_fh,
+                timeout=timeout_seconds,
+                check=False,
+            )
+    except FileNotFoundError:
+        return {
+            "ok": False,
+            "unavailable": True,
+            "reason": f"{cmd[0]} CLI not found in PATH",
+            "artifacts": artifacts,
+            "thread_id": None,
+            "usage": None,
+        }
+    except PermissionError as exc:
+        return {
+            "ok": False,
+            "unavailable": True,
+            "reason": f"cannot execute {cmd[0]}: {exc}",
+            "artifacts": artifacts,
+            "thread_id": None,
+            "usage": None,
+        }
+    except subprocess.TimeoutExpired:
+        timed_out = True
+
+    stderr_text = ""
+    if os.path.isfile(stderr_path):
+        with open(stderr_path, "r", encoding="utf-8", errors="replace") as fh:
+            stderr_text = fh.read()
+
+    thread_id: str | None = None
+    usage: dict[str, Any] | None = None
+    jsonl_errors: list[str] = []
+    if backend == "codex":
+        thread_id, usage, jsonl_errors = parse_codex_jsonl(log_path)
+    elif not timed_out:
+        if not os.path.isfile(response_path) or os.path.getsize(response_path) == 0:
+            if os.path.isfile(log_path) and os.path.getsize(log_path) > 0:
+                shutil.copyfile(log_path, response_path)
+
+    if timed_out:
+        unavail = classify_unavailable_error(stderr_text, jsonl_errors)
+        return {
+            "ok": False,
+            "unavailable": unavail is not None,
+            "reason": unavail or f"reviewer timed out after {timeout_seconds}s",
+            "artifacts": artifacts,
+            "thread_id": thread_id,
+            "usage": usage,
+        }
+
+    assert proc is not None
+    if proc.returncode != 0:
+        unavail = classify_unavailable_error(stderr_text, jsonl_errors)
+        return {
+            "ok": False,
+            "unavailable": unavail is not None,
+            "reason": unavail or summarize_error(proc.returncode, stderr_text, jsonl_errors, None),
+            "artifacts": artifacts,
+            "thread_id": thread_id,
+            "usage": usage,
+        }
+
+    response_text = ""
+    if os.path.isfile(response_path):
+        with open(response_path, "r", encoding="utf-8", errors="replace") as fh:
+            response_text = fh.read()
+
+    verdict, findings_summary, nit_only, parse_err = parse_review_response(response_text)
+    if parse_err is not None or verdict is None:
+        unavail = classify_unavailable_error(stderr_text, jsonl_errors)
+        return {
+            "ok": False,
+            "unavailable": unavail is not None,
+            "reason": unavail or summarize_error(proc.returncode, stderr_text, jsonl_errors, parse_err),
+            "artifacts": artifacts,
+            "thread_id": thread_id,
+            "usage": usage,
+        }
+
+    return {
+        "ok": True,
+        "unavailable": False,
+        "reason": None,
+        "verdict": verdict,
+        "findings_summary": findings_summary,
+        "nit_only": nit_only,
+        "findings": response_text.rstrip("\n"),
+        "artifacts": artifacts,
+        "thread_id": thread_id,
+        "usage": usage,
+    }
+
+
+def is_numeric_usage_value(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def is_monotonic_usage_ge(curr: dict[str, Any], prev: dict[str, Any]) -> bool:
+    shared = [
+        k for k in curr
+        if k in prev and is_numeric_usage_value(curr[k]) and is_numeric_usage_value(prev[k])
+    ]
+    return bool(shared) and all(curr[k] >= prev[k] for k in shared)
+
+
+def record_attempt_usage(
+    attempt_usages: list[dict[str, Any] | None],
+    inv_result: dict[str, Any],
+    thread_totals: dict[str, dict[str, Any]],
+    *,
+    backend: str,
+    resumed_thread_id: str | None = None,
+) -> None:
+    raw_usage = inv_result["usage"]
+    if not (isinstance(raw_usage, dict) and raw_usage):
+        if not inv_result["unavailable"]:
+            attempt_usages.append(None)
+        return
+
+    if backend != "codex":
+        attempt_usages.append(dict(raw_usage))
+        return
+
+    active_thread = resumed_thread_id or inv_result.get("thread_id")
+    if resumed_thread_id and active_thread and active_thread in thread_totals:
+        prev = thread_totals[active_thread]
+        if is_monotonic_usage_ge(raw_usage, prev):
+            delta: dict[str, Any] = {}
+            new_total = dict(prev)
+            for k, v in raw_usage.items():
+                if is_numeric_usage_value(v):
+                    prev_val = prev.get(k, 0) if is_numeric_usage_value(prev.get(k)) else 0
+                    delta[k] = v - prev_val
+                    new_total[k] = v
+                else:
+                    delta[k] = v
+                    new_total[k] = v
+            thread_totals[active_thread] = new_total
+            attempt_usages.append(delta)
+            return
+
+        new_total = dict(prev)
+        for k, v in raw_usage.items():
+            if is_numeric_usage_value(v):
+                prev_val = prev.get(k, 0) if is_numeric_usage_value(prev.get(k)) else 0
+                new_total[k] = prev_val + v
+            else:
+                new_total[k] = v
+        thread_totals[active_thread] = new_total
+        attempt_usages.append(dict(raw_usage))
+        return
+
+    if active_thread:
+        thread_totals[active_thread] = dict(raw_usage)
+    attempt_usages.append(dict(raw_usage))
+
+
+def sum_usage_entries(usages: list[dict[str, Any] | None]) -> tuple[dict[str, Any] | None, bool, int]:
+    """Return (usage_total, all_exposed, exposed_count) across attempt usage dicts."""
+    if not usages:
+        return None, False, 0
+
+    total: dict[str, Any] = {}
+    exposed = 0
+    for usage in usages:
+        if isinstance(usage, dict) and usage:
+            exposed += 1
+            for k, v in usage.items():
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    total[k] = total.get(k, 0) + v
+    if exposed == 0:
+        return None, False, 0
+    return total, exposed == len(usages), exposed
+
+
+def aggregate_usage(
+    rounds: list[dict[str, Any]],
+    failed_attempt_usages: list[dict[str, Any] | None] | None = None,
+) -> tuple[dict[str, Any] | None, bool, int]:
+    """Return (usage_total, usage_complete, usage_exposed_rounds)."""
+    attempt_usages: list[dict[str, Any] | None] = []
+    exposed_rounds = 0
+    for entry in rounds:
+        per_attempt = entry.get("attempt_usages")
+        if isinstance(per_attempt, list) and per_attempt:
+            attempt_usages.extend(per_attempt)
+            if any(isinstance(u, dict) and u for u in per_attempt):
+                exposed_rounds += 1
+        else:
+            usage = entry.get("usage")
+            attempt_usages.append(usage)
+            if isinstance(usage, dict) and usage:
+                exposed_rounds += 1
+
+    if failed_attempt_usages:
+        attempt_usages.extend(failed_attempt_usages)
+
+    total, all_exposed, _ = sum_usage_entries(attempt_usages)
+    return total, all_exposed, exposed_rounds
+
+
+@contextlib.contextmanager
+def session_lock(session_dir: str):
+    state_path = os.path.join(session_dir, STATE_FILE)
+    if not os.path.isfile(state_path):
+        raise UsageError(f"session state not found: {state_path}")
+    lock_path = os.path.join(session_dir, ".review.lock")
+    fd = os.open(lock_path, os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        try:
+            fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError as exc:
+            raise UsageError(f"another review command is already running on session {session_dir}") from exc
+        try:
+            yield
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
+
+
+def load_session_state(session_dir: str) -> dict[str, Any]:
+    state_path = os.path.join(session_dir, STATE_FILE)
+    if not os.path.isfile(state_path):
+        raise UsageError(f"session state not found: {state_path}")
+    try:
+        with open(state_path, "r", encoding="utf-8") as fh:
+            state = json.load(fh)
+    except (OSError, json.JSONDecodeError) as exc:
+        raise UsageError(f"cannot read session state {state_path}: {exc}") from exc
+    if not isinstance(state, dict) or state.get("schema") != SCHEMA_VERSION:
+        raise UsageError(f"invalid or unsupported session state in {state_path}")
+    return state
+
+
+def save_session_state(session_dir: str, state: dict[str, Any]) -> None:
+    state["updated_at"] = utc_now()
+    atomic_write_json(os.path.join(session_dir, STATE_FILE), state)
+
+
+def emit_json(payload: dict[str, Any]) -> int:
+    sys.stdout.write(json.dumps(payload, indent=2) + "\n")
+    return 0
+
+
+def cmd_config(args: argparse.Namespace) -> int:
+    cfg, sources, config_path = resolve_config(args)
+    return emit_json(
+        {
+            "config_path": config_path,
+            "default_config_path": default_config_path(),
+            "config": cfg,
+            "sources": sources,
+        }
+    )
+
+
+def cmd_start(args: argparse.Namespace) -> int:
+    cfg, _, config_path = resolve_config(args)
+    repo_path = os.path.abspath(args.repo or os.getcwd())
+    if not os.path.isdir(repo_path):
+        raise UsageError(f"--repo is not an existing directory: {repo_path}")
+
+    base = args.base.strip()
+    if not base:
+        raise UsageError("--base must not be empty")
+    validate_git_base(repo_path, base)
+
+    stdin_used = [False]
+    brief = read_text_arg(
+        args.brief, args.brief_file, "brief", required=True, stdin_used=stdin_used, preserve_verbatim=True
+    )
+    evidence = read_text_arg(args.evidence, args.evidence_file, "evidence", required=True, stdin_used=stdin_used)
+    assert brief is not None and evidence is not None
+
+    owned_paths = normalize_repo_paths(args.owned_paths or [], repo_path)
+    if not owned_paths:
+        raise UsageError("at least one --owned-path is required")
+
+    auto_rules = [] if args.no_auto_rules else discover_repo_rules(repo_path, owned_paths)
+    extra_rules = normalize_repo_paths(args.rules, repo_path) if args.rules else []
+    rules = list(dict.fromkeys([*auto_rules, *extra_rules]))
+
+    if args.session_dir:
+        session_dir = os.path.abspath(args.session_dir)
+        if is_subpath(session_dir, repo_path):
+            raise UsageError(f"--session-dir must be outside the repository: {session_dir}")
+        if os.path.exists(session_dir):
+            if not os.path.isdir(session_dir):
+                raise UsageError(f"--session-dir exists and is not a directory: {session_dir}")
+            if os.listdir(session_dir):
+                raise UsageError(f"--session-dir must be empty: {session_dir}")
+        else:
+            os.makedirs(session_dir, exist_ok=True)
+    else:
+        session_dir = tempfile.mkdtemp(prefix="stitch-review-")
+
+    brief_path = os.path.join(session_dir, "brief.md")
+    atomic_write_text(brief_path, brief)
+
+    prompt_text = build_round1_prompt(repo_path, base, owned_paths, rules, evidence, brief)
+    prompt_path = os.path.join(session_dir, "r1-prompt.txt")
+    atomic_write_text(prompt_path, prompt_text)
+
+    state: dict[str, Any] = {
+        "schema": SCHEMA_VERSION,
+        "created_at": utc_now(),
+        "updated_at": utc_now(),
+        "repo": repo_path,
+        "base": base,
+        "owned_paths": owned_paths,
+        "rules": rules,
+        "brief_path": brief_path,
+        "round1_prompt_path": prompt_path,
+        "config_path": config_path,
+        "config": cfg,
+        "max_rounds": cfg["max_rounds"],
+        "budget_extensions": [],
+        "thread_id": None,
+        "thread_usage_totals": {},
+        "rounds_completed": 0,
+        "status": "in_progress",
+        "fallback_reason": None,
+        "failed_attempt_usages": [],
+        "rounds": [],
+    }
+    save_session_state(session_dir, state)
+
+    result = run_single_invocation(
+        cfg=cfg,
+        repo_path=repo_path,
+        base=base,
+        session_dir=session_dir,
+        round_num=1,
+        prompt_path=prompt_path,
+        prompt_text=prompt_text,
+        resume_thread_id=None,
+    )
+    attempt_usages: list[dict[str, Any] | None] = []
+    thread_totals = state["thread_usage_totals"]
+    record_attempt_usage(attempt_usages, result, thread_totals, backend=cfg["backend"])
+
+    retried = False
+    if not result["ok"] and not result["unavailable"]:
+        retried = True
+        first_reason = result["reason"]
+        archive_attempt_files(
+            {k: v for k, v in result["artifacts"].items() if k != "prompt"},
+            round_num=1,
+            attempt_idx=1,
+        )
+        result = run_single_invocation(
+            cfg=cfg,
+            repo_path=repo_path,
+            base=base,
+            session_dir=session_dir,
+            round_num=1,
+            prompt_path=prompt_path,
+            prompt_text=prompt_text,
+            resume_thread_id=None,
+        )
+        record_attempt_usage(attempt_usages, result, thread_totals, backend=cfg["backend"])
+        if not result["ok"]:
+            result["reason"] = f"attempt 1: {first_reason}; retry: {result['reason']}"
+
+    round_usage, _, _ = sum_usage_entries(attempt_usages)
+
+    if not result["ok"]:
+        state["status"] = "fallback_needed"
+        state["fallback_reason"] = result["reason"]
+        if attempt_usages:
+            state["failed_attempt_usages"].extend(attempt_usages)
+        save_session_state(session_dir, state)
+        return emit_json(
+            {
+                "status": "fallback_needed",
+                "session": session_dir,
+                "round": 1,
+                "max_rounds": state["max_rounds"],
+                "backend": cfg["backend"],
+                "model": cfg["model"],
+                "effort": cfg["effort"],
+                "retried": retried,
+                "usage": round_usage,
+                "fallback_reason": result["reason"],
+                "next_action": FALLBACK_HINT,
+                "artifacts": result["artifacts"],
+            }
+        )
+
+    state["thread_id"] = result["thread_id"]
+    state["rounds_completed"] = 1
+    state["status"] = "ok"
+    state["fallback_reason"] = None
+    round_record = {
+        "round": 1,
+        "mode": "fresh",
+        "retried": retried,
+        "verdict": result["verdict"],
+        "findings_summary": result["findings_summary"],
+        "nit_only": result["nit_only"],
+        "usage": round_usage,
+        "attempt_usages": attempt_usages,
+        "thread_id": result["thread_id"],
+        "artifacts": result["artifacts"],
+    }
+    state["rounds"].append(round_record)
+    save_session_state(session_dir, state)
+
+    return emit_json(
+        {
+            "status": "ok",
+            "session": session_dir,
+            "round": 1,
+            "max_rounds": state["max_rounds"],
+            "extended_max_rounds": cfg["extended_max_rounds"],
+            "backend": cfg["backend"],
+            "model": cfg["model"],
+            "effort": cfg["effort"],
+            "mode": "fresh",
+            "retried": retried,
+            "verdict": result["verdict"],
+            "findings_summary": result["findings_summary"],
+            "nit_only": result["nit_only"],
+            "usage": round_usage,
+            "artifacts": result["artifacts"],
+            "findings": result["findings"],
+        }
+    )
+
+
+def build_fresh_followup_prompt(
+    state: dict[str, Any],
+    round_n_prompt: str,
+    after_resume_failure: bool,
+) -> str:
+    with open(state["round1_prompt_path"], "r", encoding="utf-8", newline="") as fh:
+        r1_prompt = fh.read()
+    r1_sep = "\n" if r1_prompt.endswith("\n") else "\n\n"
+
+    prior_sections: list[str] = []
+    for entry in state.get("rounds", []):
+        resp_path = entry.get("artifacts", {}).get("response")
+        if resp_path and os.path.isfile(resp_path):
+            with open(resp_path, "r", encoding="utf-8", errors="replace") as fh:
+                resp_text = fh.read().strip()
+            if resp_text:
+                prior_sections.append(f"Round {entry['round']} findings:\n{resp_text}")
+
+    prior_block = ""
+    if prior_sections:
+        prior_block = "---\nPrior round findings:\n\n" + "\n\n".join(prior_sections) + "\n\n"
+
+    header = (
+        "Follow-up round (fresh thread after resume failed):"
+        if after_resume_failure
+        else "Follow-up round:"
+    )
+    return f"{r1_prompt}{r1_sep}{prior_block}---\n{header}\n\n{round_n_prompt}"
+
+
+def cmd_reply(args: argparse.Namespace) -> int:
+    session_dir = os.path.abspath(args.session)
+    with session_lock(session_dir):
+        return _run_reply_locked(session_dir, args)
+
+
+def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
+    state = load_session_state(session_dir)
+
+    if state["rounds_completed"] < 1:
+        raise UsageError("cannot reply before Round 1 has completed in this session")
+    if state.get("status") == "fallback_needed":
+        raise UsageError("session already ended in fallback_needed; follow FALLBACK.md instead of replying")
+
+    cfg = copy.deepcopy(state["config"])
+    if args.timeout is not None:
+        cfg["timeout_seconds"] = parse_positive_int(args.timeout, "timeout")
+
+    if args.max_rounds is not None:
+        new_max = parse_positive_int(args.max_rounds, "max_rounds")
+        if new_max < state["max_rounds"]:
+            raise UsageError(
+                f"--max-rounds ({new_max}) cannot be lower than current session max_rounds ({state['max_rounds']})"
+            )
+        if new_max > state["max_rounds"]:
+            ext_limit = max(cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]), state["max_rounds"])
+            if new_max > ext_limit:
+                raise UsageError(
+                    f"--max-rounds ({new_max}) exceeds configured extended_max_rounds ({ext_limit})"
+                )
+            reason = (args.extend_reason or "").strip()
+            if not reason:
+                raise UsageError("--extend-reason is required when raising --max-rounds")
+            state["budget_extensions"].append(
+                {
+                    "from": state["max_rounds"],
+                    "to": new_max,
+                    "reason": reason,
+                    "at": utc_now(),
+                }
+            )
+            state["max_rounds"] = new_max
+
+    if state["rounds_completed"] >= state["max_rounds"]:
+        state["status"] = "budget_exhausted"
+        save_session_state(session_dir, state)
+        return emit_json(
+            {
+                "status": "budget_exhausted",
+                "session": session_dir,
+                "round": state["rounds_completed"],
+                "max_rounds": state["max_rounds"],
+                "extended_max_rounds": cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]),
+                "backend": cfg["backend"],
+                "model": cfg["model"],
+                "effort": cfg["effort"],
+                "next_action": "Stop uncommitted and escalate both sides to the orchestrator; budget end is not approval.",
+            }
+        )
+
+    stdin_used = [False]
+    ledger = read_text_arg(args.ledger, args.ledger_file, "ledger", required=True, stdin_used=stdin_used)
+    evidence = read_text_arg(args.evidence, args.evidence_file, "evidence", required=False, stdin_used=stdin_used)
+    assert ledger is not None
+    if evidence is None or not evidence.strip():
+        evidence = "unchanged from previous round"
+
+    repo_path = state["repo"]
+    base = state["base"]
+    changed_paths = normalize_repo_paths(args.changed_paths or [], repo_path)
+
+    # Keep session owned_paths complete if fixes added new files.
+    owned_paths = list(state["owned_paths"])
+    owned_set = set(owned_paths)
+    for path in changed_paths:
+        if path not in owned_set:
+            owned_set.add(path)
+            owned_paths.append(path)
+    state["owned_paths"] = owned_paths
+
+    next_round = state["rounds_completed"] + 1
+    prompt_text = build_round_n_prompt(
+        round_num=next_round,
+        repo_path=repo_path,
+        base=base,
+        owned_paths=owned_paths,
+        changed_paths=changed_paths,
+        ledger=ledger,
+        evidence=evidence,
+    )
+    prompt_path = os.path.join(session_dir, f"r{next_round}-prompt.txt")
+    atomic_write_text(prompt_path, prompt_text)
+
+    thread_id = state.get("thread_id")
+    thread_totals = state.setdefault("thread_usage_totals", {})
+    force_fresh = bool(args.fresh) or cfg.get("thread_mode", "resume") == "fresh"
+    can_resume = (
+        False
+        if force_fresh
+        else (
+            bool(thread_id)
+            if cfg["backend"] == "codex"
+            else bool(cfg["command"].get("reply"))
+        )
+    )
+
+    mode = "resume" if can_resume else "fresh"
+    retried = False
+    attempt_usages: list[dict[str, Any] | None] = []
+
+    if can_resume:
+        result = run_single_invocation(
+            cfg=cfg,
+            repo_path=repo_path,
+            base=base,
+            session_dir=session_dir,
+            round_num=next_round,
+            prompt_path=prompt_path,
+            prompt_text=prompt_text,
+            resume_thread_id=thread_id,
+            use_reply_mode=True,
+        )
+        record_attempt_usage(
+            attempt_usages,
+            result,
+            thread_totals,
+            backend=cfg["backend"],
+            resumed_thread_id=thread_id if cfg["backend"] == "codex" else None,
+        )
+        if not result["ok"] and not result["unavailable"]:
+            retried = True
+            mode = "resume-fallback"
+            resume_reason = result["reason"]
+            archive_attempt_files(
+                {k: v for k, v in result["artifacts"].items() if k != "prompt"},
+                round_num=next_round,
+                attempt_idx=1,
+            )
+            combined_prompt = build_fresh_followup_prompt(state, prompt_text, after_resume_failure=True)
+            combined_path = os.path.join(session_dir, f"r{next_round}-fresh-prompt.txt")
+            atomic_write_text(combined_path, combined_prompt)
+
+            result = run_single_invocation(
+                cfg=cfg,
+                repo_path=repo_path,
+                base=base,
+                session_dir=session_dir,
+                round_num=next_round,
+                prompt_path=combined_path,
+                prompt_text=combined_prompt,
+                resume_thread_id=None,
+            )
+            record_attempt_usage(attempt_usages, result, thread_totals, backend=cfg["backend"])
+            if not result["ok"]:
+                result["reason"] = f"resume failed ({resume_reason}); fresh thread failed ({result['reason']})"
+    else:
+        combined_prompt = build_fresh_followup_prompt(state, prompt_text, after_resume_failure=False)
+        combined_path = os.path.join(session_dir, f"r{next_round}-fresh-prompt.txt")
+        atomic_write_text(combined_path, combined_prompt)
+        result = run_single_invocation(
+            cfg=cfg,
+            repo_path=repo_path,
+            base=base,
+            session_dir=session_dir,
+            round_num=next_round,
+            prompt_path=combined_path,
+            prompt_text=combined_prompt,
+            resume_thread_id=None,
+        )
+        record_attempt_usage(attempt_usages, result, thread_totals, backend=cfg["backend"])
+        if not result["ok"] and not result["unavailable"]:
+            retried = True
+            first_reason = result["reason"]
+            archive_attempt_files(
+                {k: v for k, v in result["artifacts"].items() if k != "prompt"},
+                round_num=next_round,
+                attempt_idx=1,
+            )
+            result = run_single_invocation(
+                cfg=cfg,
+                repo_path=repo_path,
+                base=base,
+                session_dir=session_dir,
+                round_num=next_round,
+                prompt_path=combined_path,
+                prompt_text=combined_prompt,
+                resume_thread_id=None,
+            )
+            record_attempt_usage(attempt_usages, result, thread_totals, backend=cfg["backend"])
+            if not result["ok"]:
+                result["reason"] = f"attempt 1: {first_reason}; retry: {result['reason']}"
+
+    round_usage, _, _ = sum_usage_entries(attempt_usages)
+
+    if not result["ok"]:
+        state["status"] = "fallback_needed"
+        state["fallback_reason"] = result["reason"]
+        if attempt_usages:
+            state.setdefault("failed_attempt_usages", []).extend(attempt_usages)
+        save_session_state(session_dir, state)
+        return emit_json(
+            {
+                "status": "fallback_needed",
+                "session": session_dir,
+                "round": next_round,
+                "max_rounds": state["max_rounds"],
+                "backend": cfg["backend"],
+                "model": cfg["model"],
+                "effort": cfg["effort"],
+                "mode": mode,
+                "retried": retried,
+                "usage": round_usage,
+                "fallback_reason": result["reason"],
+                "next_action": FALLBACK_HINT,
+                "artifacts": result["artifacts"],
+            }
+        )
+
+    if mode == "resume":
+        if result["thread_id"]:
+            state["thread_id"] = result["thread_id"]
+    else:
+        state["thread_id"] = result["thread_id"]
+    state["rounds_completed"] = next_round
+    state["status"] = "ok"
+    state["fallback_reason"] = None
+    round_record = {
+        "round": next_round,
+        "mode": mode,
+        "retried": retried,
+        "verdict": result["verdict"],
+        "findings_summary": result["findings_summary"],
+        "nit_only": result["nit_only"],
+        "usage": round_usage,
+        "attempt_usages": attempt_usages,
+        "thread_id": state.get("thread_id"),
+        "artifacts": result["artifacts"],
+    }
+    state["rounds"].append(round_record)
+    save_session_state(session_dir, state)
+
+    return emit_json(
+        {
+            "status": "ok",
+            "session": session_dir,
+            "round": next_round,
+            "max_rounds": state["max_rounds"],
+            "extended_max_rounds": cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]),
+            "backend": cfg["backend"],
+            "model": cfg["model"],
+            "effort": cfg["effort"],
+            "mode": mode,
+            "retried": retried,
+            "verdict": result["verdict"],
+            "findings_summary": result["findings_summary"],
+            "nit_only": result["nit_only"],
+            "usage": round_usage,
+            "artifacts": result["artifacts"],
+            "findings": result["findings"],
+        }
+    )
+
+
+def cmd_receipt(args: argparse.Namespace) -> int:
+    session_dir = os.path.abspath(args.session)
+    state = load_session_state(session_dir)
+    cfg = state["config"]
+    rounds = state.get("rounds", [])
+    last = rounds[-1] if rounds else None
+    usage_total, usage_complete, usage_exposed_rounds = aggregate_usage(
+        rounds, state.get("failed_attempt_usages")
+    )
+
+    return emit_json(
+        {
+            "session": session_dir,
+            "repo": state["repo"],
+            "base": state["base"],
+            "owned_paths": state["owned_paths"],
+            "backend": cfg["backend"],
+            "model": cfg["model"],
+            "effort": cfg["effort"],
+            "thread_mode": cfg.get("thread_mode", "resume"),
+            "status": state["status"],
+            "rounds_completed": state["rounds_completed"],
+            "max_rounds": state["max_rounds"],
+            "extended_max_rounds": cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]),
+            "final_verdict": last["verdict"] if last else None,
+            "nit_only": last["nit_only"] if last else False,
+            "fallback_reason": state.get("fallback_reason"),
+            "usage_total": usage_total,
+            "usage_complete": usage_complete,
+            "usage_exposed_rounds": usage_exposed_rounds,
+            "response_paths": [r["artifacts"]["response"] for r in rounds],
+            "rounds": [
+                {
+                    "round": r["round"],
+                    "mode": r["mode"],
+                    "verdict": r["verdict"],
+                    "findings_summary": r["findings_summary"],
+                    "nit_only": r["nit_only"],
+                    "usage": r["usage"],
+                    "response": r["artifacts"]["response"],
+                }
+                for r in rounds
+            ],
+        }
+    )
+
+
+def add_config_flags(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--config", help="Path to review.json config file")
+    parser.add_argument("--backend", choices=VALID_BACKENDS, help="Reviewer backend (codex or command)")
+    parser.add_argument("--model", help="Reviewer model override")
+    parser.add_argument("--effort", help="Reasoning effort override")
+    parser.add_argument(
+        "--thread-mode",
+        choices=VALID_THREAD_MODES,
+        help="Multi-round thread strategy: resume (default) or fresh per round",
+    )
+    parser.add_argument("--max-rounds", type=int, help="Maximum review rounds (default from config: 3)")
+    parser.add_argument("--timeout", type=int, help="Per-round timeout in seconds (default from config: 900)")
+    parser.add_argument("--codex-bin", help="Path or name of codex CLI binary")
+
+
+def build_parser() -> argparse.ArgumentParser:
+    epilog = (
+        "Config precedence: CLI flags > STITCH_REVIEW_* env vars > config file "
+        "(--config / STITCH_REVIEW_CONFIG / ${XDG_CONFIG_HOME:-$HOME/.config}/stitch/review.json) > defaults.\n"
+        "Exit codes: 0 = structured JSON outcome on stdout (status: ok | fallback_needed | budget_exhausted); "
+        "2 = usage/input/config error on stderr."
+    )
+    parser = argparse.ArgumentParser(
+        prog="review",
+        description="Deterministic review runner for the stitch skill.",
+        epilog=epilog,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sub = parser.add_subparsers(dest="subcommand", required=True)
+
+    p_config = sub.add_parser("config", help="Print effective resolved configuration as JSON")
+    add_config_flags(p_config)
+    p_config.set_defaults(func=cmd_config)
+
+    p_start = sub.add_parser("start", help="Run Round 1 review and create a session directory")
+    add_config_flags(p_start)
+    p_start.add_argument("--repo", help="Absolute path of target repo (default: current directory)")
+    p_start.add_argument("--base", required=True, help="Base git SHA for the review diff")
+    p_start.add_argument("--brief", help="Verbatim orchestrator brief text")
+    p_start.add_argument("--brief-file", help="Path to verbatim orchestrator brief file ('-' for stdin)")
+    p_start.add_argument(
+        "--owned-path",
+        "--owned-paths",
+        dest="owned_paths",
+        nargs="+",
+        action="extend",
+        required=True,
+        help="Modified, added, or deleted file paths owned by this change",
+    )
+    p_start.add_argument("--evidence", help="Verification commands and pass/fail results")
+    p_start.add_argument("--evidence-file", help="Path to verification evidence file ('-' for stdin)")
+    p_start.add_argument(
+        "--rule",
+        "--rules",
+        dest="rules",
+        nargs="+",
+        action="extend",
+        help="Additional repo rule files (merged with auto-discovered rules unless --no-auto-rules is set)",
+    )
+    p_start.add_argument("--no-auto-rules", action="store_true", help="Skip automatic AGENTS.md/CLAUDE.md discovery")
+    p_start.add_argument("--session-dir", help="Optional empty directory outside repo for review session artifacts")
+    p_start.set_defaults(func=cmd_start)
+
+    p_reply = sub.add_parser("reply", help="Run Round N delta review on an existing session")
+    p_reply.add_argument("--session", required=True, help="Session directory returned by 'start'")
+    p_reply.add_argument("--ledger", help="Updated findings ledger text (fixed/disagree/declined + evidence)")
+    p_reply.add_argument("--ledger-file", help="Path to updated ledger file ('-' for stdin)")
+    p_reply.add_argument(
+        "--changed-path",
+        "--changed-paths",
+        dest="changed_paths",
+        nargs="+",
+        action="extend",
+        help="Paths modified or added since the previous round (omit if none changed)",
+    )
+    p_reply.add_argument("--evidence", help="Updated verification commands and pass/fail results")
+    p_reply.add_argument("--evidence-file", help="Path to updated verification evidence file ('-' for stdin)")
+    p_reply.add_argument("--max-rounds", type=int, help="Raise session max rounds (e.g. 5 for security/concurrency)")
+    p_reply.add_argument("--extend-reason", help="Reason for raising --max-rounds (required when extending budget)")
+    p_reply.add_argument(
+        "--fresh",
+        action="store_true",
+        help="Start a fresh reviewer thread for this round instead of resuming",
+    )
+    p_reply.add_argument("--timeout", type=int, help="Override timeout in seconds for this round")
+    p_reply.set_defaults(func=cmd_reply)
+
+    p_receipt = sub.add_parser("receipt", help="Print structured review receipt for a session")
+    p_receipt.add_argument("--session", required=True, help="Session directory returned by 'start'")
+    p_receipt.set_defaults(func=cmd_receipt)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = build_parser()
+    try:
+        args = parser.parse_args(argv)
+        return args.func(args)
+    except UsageError as exc:
+        sys.stderr.write(f"review: error: {exc}\n")
+        return 2
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

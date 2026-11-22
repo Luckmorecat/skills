@@ -17,19 +17,45 @@ Stop uncommitted and return to the orchestrator when:
 
 ## 2. Review
 
-Read [REVIEW.md](REVIEW.md) and run review against `base` and your exact `owned paths` (every file you modified, added, or deleted), passing the orchestrator's brief **verbatim** in Round 1:
+Below, `review <command>` means `python3 <review-cli> <command>`, where `<review-cli>` is the absolute path of this skill's `bin/review` passed by the orchestrator (`review <command> --help` documents every flag; `review config` shows effective defaults). `bin/review` owns prompt templates, model/effort/backend configuration, scratch session state, read-only execution, retries, resume fallback, and JSONL extraction.
 
-- **Default**: run the **Codex review loop** in [REVIEW.md](REVIEW.md).
-- **Fallback** (when the orchestrator requested fallback-only review, or Codex fails/is unavailable per [REVIEW.md](REVIEW.md)): if this runtime allows you to dispatch a fresh subagent, run **Worker fallback** in [REVIEW.md](REVIEW.md) yourself. Otherwise stop uncommitted and return `Review status: fallback needed (<exact reason>)` with your `owned paths`, verification evidence, and proposed commit message so the orchestrator can run isolated fallback review.
+- **Fallback-only requested**: skip `bin/review` and read [FALLBACK.md](FALLBACK.md).
+- **Round 1**: write the orchestrator's brief **verbatim** (never summarized or trimmed) to a temp file outside the repo (or pipe via `--brief-file -`) and run:
 
-Keep a ledger (`id`, `severity`, `outcome`) and verify every finding in the code yourself:
+```bash
+python3 <review-cli> start \
+  --repo <repo abs path> \
+  --base <base> \
+  --brief-file <brief file> \
+  --owned-path <path>... \
+  --evidence "<commands and pass/fail results>"
+```
 
-- **Agree (`blocker` / `should`)**: apply the smallest fix (prefer deleting or narrowing over adding abstractions, caches, or options), add one focused test if intent needs it, and rerun affected checks (plus the full relevant suite if fixes touched shared code).
-- **Disagree (factual)**: prepare evidence (`file:line`, test output, or brief quote) for the next round.
-- **Conflicts with the brief or expands scope**: push back once citing the brief; if the reviewer still insists on a later round, or if a finding exposes a genuine gap in the brief, stop uncommitted and escalate to the orchestrator with both sides in 2–3 lines.
-- **Out of scope or `nit`**: decline in one line and list as a follow-up.
+Pass `--backend`, `--model`, `--effort`, `--thread-mode`, or `--config` only when the orchestrator supplied overrides. Pass `--rule <path>...` only if applicable repo rule files exist beyond `AGENTS.md`, `CLAUDE.md`, or `.github/copilot-instructions.md` (which `bin/review` discovers automatically). Run in the background (or with a generous timeout) and wait for exit; leave owned paths untouched while review runs.
 
-If review hits the round budget with a `blocker` or `should` still open, stop uncommitted and escalate both sides to the orchestrator; budget end is not approval.
+Branch on the stdout JSON `status` (non-zero exit with stderr is a caller/config error — fix your arguments, or move to [FALLBACK.md](FALLBACK.md) if `bin/review` itself cannot run):
+
+- **`fallback_needed`**: read [FALLBACK.md](FALLBACK.md). Run **Worker fallback** if this runtime lets you dispatch a fresh subagent; otherwise stop uncommitted and return `Review status: fallback needed (<fallback_reason>)` with your `owned paths`, verification evidence, and proposed commit message so the orchestrator can run **Orchestrator fallback**.
+- **`budget_exhausted`**: stop uncommitted and escalate both sides to the orchestrator; budget end is not approval.
+- **`ok`**: read `verdict`, `nit_only`, and `findings` from the JSON response (never read raw `*.jsonl` logs). Keep a ledger (`id`, `severity`, `outcome`) and verify every finding in the code yourself:
+  - **Agree (`blocker` / `should`)**: apply the smallest fix (prefer deleting or narrowing over adding abstractions, caches, or options), add one focused test if intent needs it, and rerun affected checks (plus the full relevant suite if fixes touched shared code).
+  - **Disagree (factual)**: prepare evidence (`file:line`, test output, or brief quote) for the next round.
+  - **Conflicts with the brief or expands scope**: push back once citing the brief; if the reviewer still insists on a later round, or if a finding exposes a genuine gap in the brief, stop uncommitted and escalate to the orchestrator with both sides in 2–3 lines.
+  - **Out of scope or `nit`**: decline in one line and list as a follow-up.
+
+Stop early once `verdict` is `APPROVE` covering the current behavior diff, or only declined `nit`s remain (confirmed in code) and no behavior code changed (comment, doc, or format-only edits need no new round). Otherwise run the next round:
+
+```bash
+python3 <review-cli> reply \
+  --session <session> \
+  --ledger-file <ledger file> \
+  [--changed-path <path>...] \
+  --evidence "<updated pass/fail results>"
+```
+
+Pass `--max-rounds <N> --extend-reason "<reason>"` (up to the session's `extended_max_rounds`, default 5) only for security, permissions, auth, data loss, or state/concurrency while a `blocker` or `should` stays open with evidence, or when the orchestrator asked. Pass `--fresh` on `reply` to start a new reviewer thread after a major rewrite or long pause.
+
+Before returning, run `python3 <review-cli> receipt --session <session>` to collect the exact review receipt fields without guessing usage.
 
 ## 3. Commit
 
@@ -47,6 +73,6 @@ Return:
 - Commit SHA(s) and subjects (or uncommitted status if paused, blocked, or handing off to fallback review)
 - `owned paths`
 - Verification evidence (commands, pass/fail, temp log paths)
-- Review receipt: backend (`codex`, `worker fallback subagent`, or `fallback needed: <reason>`), model and effort (when Codex), rounds, final verdict, fixed and declined findings, usage if exposed (else say not exposed), and `<scratch>/r*.md` paths (when Codex)
+- Review receipt: backend, model and effort, rounds, final verdict, fixed and declined findings, usage if exposed (else say not exposed), and response paths from `review receipt` (or fallback receipt / `fallback needed: <reason>`)
 - Proposed commit message/rationale (when returning uncommitted for fallback review)
 - Any open questions, review disputes, follow-ups, or blockers
