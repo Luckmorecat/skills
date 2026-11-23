@@ -12,7 +12,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `ux` | Audit an interface through its users' tasks and recommend usability improvements. |
 | `adopt` | Adopt a chosen UI or logic prototype by reconciling it with current use cases. |
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
-| `implement` | Implement requested work directly with fit-for-purpose proof. |
+| `wire` | Implement requested work directly with fit-for-purpose proof. |
 | `land` | Implement requested work, review it, and commit it green. |
 | `weave` | Deliver work settled in the current session through subagents. |
 | `stitch` | Deliver work settled in the current session with one lean worker and Codex review. |
@@ -32,7 +32,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | An idea or feature needs exploration | `define` |
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
-| Settled work, infra/setups, or quick fixes to run directly without TDD or review ceremony | `implement` |
+| Settled work, infra/setups, or quick fixes to run directly without TDD or review ceremony | `wire` |
 | A small change settled in the current session, with context to preserve | `weave` |
 | A settled change when you want low primary-agent quota and Codex review | `stitch` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
@@ -50,7 +50,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
-`implement` is the direct, low-ceremony path for running settled work, infra/setups, or quick requests inline without TDD or review overhead: it verifies assumptions, guards against irreversible or external side effects, proves each scenario with the lightest concrete check, audits the diff, and leaves changes uncommitted. `land` carries the full test-first implementation steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take those same test-first steps from its `WORKER.md`; each carries its own copy so it installs on its own—change those two together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
+`wire` is the direct, low-ceremony path for running settled work, infra/setups, or quick requests inline without TDD or review overhead: it verifies assumptions, guards against irreversible or external side effects, proves each scenario with the lightest concrete check, audits the diff, and leaves changes uncommitted. `land` carries the full test-first implementation steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take those same test-first steps from its `WORKER.md`; each carries its own copy so it installs on its own—change those two together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and targeted inline or subagent discovery to resolve consequential choices. It finishes with a conversational recap of purpose, scope, scenarios, settled decisions, and remaining uncertainties. The user chooses what happens next.
 

@@ -1,7 +1,6 @@
 ---
-name: implement
-description: Implement requested work directly with fit-for-purpose proof.
-disable-model-invocation: true
+name: wire
+description: Use when the user tells you to "wire" work (e.g. "wire it", "wire this", "wire up X").
 ---
 
 Implement the supplied or requested work.
