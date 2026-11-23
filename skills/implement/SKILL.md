@@ -1,17 +1,30 @@
 ---
 name: implement
-description: Implement requested work and verify it green, leaving the changes uncommitted.
+description: Implement requested work directly with fit-for-purpose proof.
 disable-model-invocation: true
 ---
 
-Implement the work the user requests, using any supplied plan, spec, ticket, brief, or acceptance criteria.
+Implement the supplied or requested work.
 
-Honour the requested scope, acceptance criteria, constraints, exclusions, and verification requirements. Where absent, derive observable success/boundary examples from the request and use the repository's checks. Ask only where ambiguity changes the outcome. Green means checks pass, acceptance is demonstrated, and constraints hold.
+## 1. Ground
 
-Run the cheapest relevant baseline check. Work test-first at the test boundaries the work names, using `tdd` when available. Run focused checks regularly and the full relevant suite at the end; exercise the API or UI when needed to prove acceptance.
+Honour agreed scope, exclusions, and decisions; derive concrete scenarios where absent. Before editing:
 
-Reconcile discoveries before dependent implementation. Correct internal implementation choices within approved constraints; ask before changing approved behaviour, including what the supplied work's sources of truth settle, such as a contract's prototype reference, public contracts, persistent data, security/privacy, deployment, external services, ongoing cost, or an expensive-to-reverse choice.
+- Verify assumptions that affect the change.
+- Ask on any open choice or ambiguity that changes the outcome.
+- In a git repo, check `git status --porcelain` so unrelated dirty paths stay untouched; ask before editing an already-dirty path.
 
-Record what future readers of the code need, such as a non-obvious constraint, in the code or a test. Leave the changes uncommitted and report the changed paths, verification evidence, blockers, and notes for the commit message, such as why you chose an approach.
+## 2. Execute
 
-If blocked, preserve the baseline, owned changes, and evidence; report the missing prerequisite or decision.
+Make the smallest changes that satisfy the scenarios. Ask before changing agreed behavior or triggering irreversible, destructive, or external side effects (live infrastructure or services, global state, persistent data, security or permissions, public contracts, ongoing cost, or pushing).
+
+## 3. Prove and finish
+
+Prove every scenario after the final edit with the lightest concrete check that demonstrates it: validation, dry-run, build, smoke run, live check, or a focused test where logic warrants one. Mark any check you could not run as unproven.
+
+Audit the final diff for scope, stray files, and secrets, and leave changes uncommitted.
+
+Report:
+- Changed paths (and any non-repo state touched)
+- Proof per scenario (commands and outcomes, plus anything unproven)
+- Discoveries, open items, or blockers (preserving partial work if blocked)

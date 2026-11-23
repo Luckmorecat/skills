@@ -1,5 +1,5 @@
 interface:
   display_name: "Implement"
-  short_description: "Implement requested work and verify it green, uncommitted"
+  short_description: "Implement requested work directly with fit-for-purpose proof"
 policy:
   allow_implicit_invocation: false

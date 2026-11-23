@@ -12,7 +12,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | `ux` | Audit an interface through its users' tasks and recommend usability improvements. |
 | `adopt` | Adopt a chosen UI or logic prototype by reconciling it with current use cases. |
 | `slice` | Break settled context into verifiable vertical slices and dependencies. |
-| `implement` | Implement requested work and verify it green, leaving it uncommitted. |
+| `implement` | Implement requested work directly with fit-for-purpose proof. |
 | `land` | Implement requested work, review it, and commit it green. |
 | `weave` | Deliver work settled in the current session through subagents. |
 | `stitch` | Deliver work settled in the current session with one lean worker and Codex review. |
@@ -32,7 +32,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 | An idea or feature needs exploration | `define` |
 | Settled context needs a delivery contract | `contract` |
 | A small change with a settled scope | `contract`, then `land` |
-| A change you want to review or commit yourself | `implement` |
+| Settled work, infra/setups, or quick fixes to run directly without TDD or review ceremony | `implement` |
 | A small change settled in the current session, with context to preserve | `weave` |
 | A settled change when you want low primary-agent quota and Codex review | `stitch` |
 | A defined feature needing several increments | `slice` from settled context or a contract, then `next-slice` per eligible slice |
@@ -50,7 +50,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `land`, `next-slice`, and `weave` run `code-review` themselves or through a subagent. Run it directly to review a branch, a pull request, or anything since a commit.
 
-`implement` builds and verifies the requested work green, then stops with changed paths, evidence, and blockers, leaving the changes uncommitted. `land` takes the same steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take them from its `WORKER.md`. Each skill carries its own copy so it installs on its own; change the three together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
+`implement` is the direct, low-ceremony path for running settled work, infra/setups, or quick requests inline without TDD or review overhead: it verifies assumptions, guards against irreversible or external side effects, proves each scenario with the lightest concrete check, audits the diff, and leaves changes uncommitted. `land` carries the full test-first implementation steps, then runs `code-review` and hands the reviewed tree to `commit`. `weave` workers take those same test-first steps from its `WORKER.md`; each carries its own copy so it installs on its own—change those two together. `weave`'s `RECONCILER.md` likewise carries `adopt`'s mapping and precedence defaults, generalised from a prototype to any source of truth: `silent` stands for `adopt`'s `unshown`, and `added` covers behaviour a source requires that the system lacks. Change the two together.
 
 `define` combines the former `shape` and `define` exploration flows. It works from a vague idea or a concrete feature, using question rounds, scenario checks, and targeted inline or subagent discovery to resolve consequential choices. It finishes with a conversational recap of purpose, scope, scenarios, settled decisions, and remaining uncertainties. The user chooses what happens next.
 
@@ -60,7 +60,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `ux` frames the users, their main tasks, and context of use, then checks the scope-relevant discovery tracks—inventorying the interface, walking through each task in the running UI, researching comparable patterns, and checking accessibility—inline when small or through subagents when broad. Findings are tied to a task step, a principle from its `PRINCIPLES.md`, and evidence, and rated by severity. It recommends changes without editing product code. Choices that need to be seen are handed to a separate `prototype` skill, and the returned variants are evaluated against the same tasks.
 
-`adopt` makes a chosen prototype safe to implement as the source of truth for what it settles, whether an interface or logic such as a state model. It pins the reference, maps every use case the current system supports as kept, changed, unshown, dropped, or conflicting, and settles precedence so defaults resolve most gaps. It asks about the rest and records answers in the contract's prototype reference ledger. Per-kind checklists and default precedence live in its `KINDS.md`. Implementation treats the reference as approved behavior: `implement`, `land`, and `next-slice` raise discrepancies with it, and `adopt` settles them in a batch.
+`adopt` makes a chosen prototype safe to implement as the source of truth for what it settles, whether an interface or logic such as a state model. It pins the reference, maps every use case the current system supports as kept, changed, unshown, dropped, or conflicting, and settles precedence so defaults resolve most gaps. It asks about the rest and records answers in the contract's prototype reference ledger. Per-kind checklists and default precedence live in its `KINDS.md`. Implementation treats the reference as approved behavior: `land`, `next-slice`, and `weave` raise discrepancies with it, and `adopt` settles them in a batch.
 
 `slice` accepts settled conversation, a contract, or an existing plan. It prepares independently verifiable vertical slices with explicit dependencies, preserving the full agreed scope. Slice descriptions focus on outcomes, acceptance, and proof; execution discovers current paths and commands. The plan carries delegated discretion, precedence rules, and any prototype reference, so execution settles what they cover the same way with or without a contract. Missing decisions or evidence block affected slices while independent work continues. `next-slice` implements one eligible slice, verifies and reviews it, then commits and checkpoints progress. You can authorize bounded continuation across eligible slices.
 
