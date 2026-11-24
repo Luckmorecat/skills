@@ -1,6 +1,6 @@
 # Striker skills
 
-Fifteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, implementing work, delivering one green slice at a time or several in parallel, handing settled work to subagents, reviewing and committing changes, and stripping comments from them, plus one for explaining a topic visually.
+Eighteen workflow skills for shaping an idea, resolving design decisions, auditing usability, adopting a chosen prototype into the current system, planning implementation, implementing work, delivering one green slice at a time or several in parallel, handing settled work to subagents, running Codex review loops, reviewing and committing changes, stripping comments, and explaining a topic visually.
 
 ## Skills
 
@@ -74,7 +74,7 @@ Fifteen workflow skills for shaping an idea, resolving design decisions, auditin
 
 `no-comments` sends a fresh subagent to delete comments from the named files or the current diff, keeping only license headers, tool directives, public API docs, constraints imposed by code we cannot change, and a few suppressions. A comment excusing a surprise in our own code dies, and its symbol is flagged `MUST KILL` with the reshape that would make it obvious. The skill audits the sweep, restores deletions that meet an exception, fixes trivial flags, and reports the rest for `design` or `land` without refactoring further. Adapted from Comment Sicko in [pstack](https://github.com/cursor/plugins/tree/main/pstack) (MIT, © 2026 Lauren Tan).
 
-`sol-loop` sends the change to GPT Sol through `codex exec` in a read-only sandbox and resumes the same Codex thread for later rounds, keeping a ledger of findings, outcomes, and usage. It answers each finding with the smallest fix or evidence-backed pushback, stops at approval or after three rounds (five for security or data-loss risks), and never pushes unless asked. Adapted from sol-loop in [tstack](https://github.com/t3dotgg/tstack/tree/main/skills/sol-loop) (MIT, © 2026 Theo Browne), with the T3 orchestrator route replaced by the Codex CLI.
+`sol-loop` runs a read-only GPT Sol review loop through its `bin/review` CLI (defaulting to `codex exec` with `gpt-6.2-sol` at `xhigh`, overridable via CLI flags or `SOL_LOOP_*` env vars), resuming the same Codex thread for later rounds with fresh-thread fallback including prior findings, cumulative usage tracking, and before/after diff stats. It answers each finding with the smallest fix or evidence-backed pushback, stops at approval or `nit`-only (or after three rounds, five for security/auth/data-loss/concurrency risks), and never pushes unless asked. Adapted from sol-loop in [tstack](https://github.com/t3dotgg/tstack/tree/main/skills/sol-loop) (MIT, © 2026 Theo Browne), with the T3 orchestrator route replaced by the Codex CLI.
 
 ## Where plans live
 
