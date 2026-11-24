@@ -26,7 +26,7 @@ Instructions for the single fresh isolated review subagent (2 rounds max: Round 
      VERDICT: APPROVE or CHANGES
      R1 [blocker|should|nit] <file>:<line> <claim>. Fix: <smallest suggestion>
      ```
-   - Round 2 (delta pass): inspect open IDs and changes since Round 1 only; mark each old ID `resolved` or `still open: <reason>`, report any new defect introduced by the fixes, and end with `VERDICT: APPROVE` or `VERDICT: CHANGES`.
+   - Round 2 (delta pass): inspect open IDs and changes since Round 1 only; mark each old ID `resolved`, `deferred: <reason>` (accepted decline, nit, or non-blocking follow-up), or `still open: <reason>` (blocking item), report any new defect introduced by the fixes, and end with `VERDICT: APPROVE` (only when zero `blocker`, `should`, or `still open` items remain) or `VERDICT: CHANGES`.
 
 ## Worker fallback (when nested subagents are available)
 

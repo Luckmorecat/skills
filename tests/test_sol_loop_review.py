@@ -173,7 +173,7 @@ class SolLoopReviewTestCase(unittest.TestCase):
         self.assertEqual(r1["model"], "gpt-6.2-sol")
         self.assertEqual(r1["effort"], "xhigh")
         self.assertEqual(r1["verdict"], "CHANGES")
-        self.assertEqual(r1["findings_summary"], {"blocker": 0, "should": 1, "nit": 0, "still_open": 0})
+        self.assertEqual(r1["findings_summary"], {"blocker": 0, "should": 1, "nit": 0, "still_open": 0, "deferred": 0})
         self.assertEqual(r1["usage"], {"input_tokens": 412666, "cached_input_tokens": 364672, "output_tokens": 2898})
         self.assertEqual(r1["diff_stat"]["untracked_files"], 1)
         self.assertEqual(r1["diff_stat"]["untracked_lines"], 2)
@@ -394,6 +394,143 @@ class SolLoopReviewTestCase(unittest.TestCase):
         )
         self.assertEqual(r_fence["status"], "ok")
         self.assertEqual(r_fence["verdict"], "APPROVE")
+
+    def test_deferred_nit_still_open_and_resumed_contradiction_recovery(self) -> None:
+        # 1. Resolved/deferred/declined/[nit] still open all allow clean APPROVE without contradiction
+        self.set_fake_responses([
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-def"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 500, "output_tokens": 50}},
+                ],
+                "output": (
+                    "VERDICT: CHANGES\n"
+                    "S1 [blocker] app.py:1 Bug 1. Fix: fix 1.\n"
+                    "S2 [should] app.py:2 Bug 2. Fix: fix 2.\n"
+                    "S3 [should] app.py:2 Manual StoreKit run. Fix: test in sandbox.\n"
+                    "S4 [nit] app.py:2 Minor naming. Fix: rename.\n"
+                ),
+            },
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-def"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 800, "output_tokens": 80}},
+                ],
+                "output": (
+                    "S1 [blocker] resolved\n"
+                    "S2 resolved\n"
+                    "S3 [should] deferred: manual StoreKit sandbox run accepted as follow-up\n"
+                    "S4 [nit] still open: naming left as-is\n"
+                    "VERDICT: APPROVE\n"
+                ),
+            },
+        ])
+        r1 = json.loads(
+            self.run_cli(
+                "start", "--repo", self.repo, "--base", self.base,
+                "--intent", "StoreKit flow", "--checks", "ok", "--codex-bin", self.fake_codex,
+            ).stdout
+        )
+        r2 = json.loads(
+            self.run_cli(
+                "reply", "--session", r1["session"],
+                "--ledger", "S1,S2 fixed; S3 declined (manual sandbox); S4 declined (nit)",
+            ).stdout
+        )
+        self.assertEqual(r2["status"], "ok")
+        self.assertEqual(r2["mode"], "resume")
+        self.assertFalse(r2["retried"])
+        self.assertEqual(r2["verdict"], "APPROVE")
+        self.assertEqual(r2["findings_summary"], {"blocker": 0, "should": 0, "nit": 1, "still_open": 0, "deferred": 1})
+        self.assertNotIn("verdict_coerced", r2)
+        calls = self.get_fake_calls()
+        self.assertIn("deferred: <reason>", calls[1]["argv"][-1])
+
+        # 2. Resumed round returning contradictory APPROVE + still open retries on SAME resumed thread with corrective note
+        self.set_fake_responses([
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-corr"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 1000, "output_tokens": 100}},
+                ],
+                "output": "VERDICT: CHANGES\nS1 [blocker] app.py:1 Bug. Fix: fix.\nS3 [should] app.py:2 Manual check.\n",
+            },
+            # Round 2 attempt 1: contradictory APPROVE alongside still open
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-corr"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 1400, "output_tokens": 140}},
+                ],
+                "output": "S1 resolved\nS3 still open: manual sandbox run\nVERDICT: APPROVE\n",
+            },
+            # Round 2 attempt 2 (corrective follow-up on SAME thread): Sol clarifies deferred + APPROVE
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-corr"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 1550, "output_tokens": 160}},
+                ],
+                "output": "S1 resolved\nS3 deferred: manual sandbox run accepted as follow-up\nVERDICT: APPROVE\n",
+            },
+        ])
+        s1 = json.loads(
+            self.run_cli(
+                "start", "--repo", self.repo, "--base", self.base,
+                "--intent", "Corrective retry", "--checks", "ok", "--codex-bin", self.fake_codex,
+            ).stdout
+        )
+        s2 = json.loads(
+            self.run_cli("reply", "--session", s1["session"], "--ledger", "S1 fixed; S3 declined").stdout
+        )
+        self.assertEqual(s2["status"], "ok")
+        self.assertEqual(s2["mode"], "resume")
+        self.assertTrue(s2["retried"])
+        self.assertEqual(s2["verdict"], "APPROVE")
+        self.assertEqual(s2["findings_summary"]["deferred"], 1)
+        self.assertEqual(s2["findings_summary"]["still_open"], 0)
+        # Delta math: attempt 1 = 400/40, attempt 2 = 150/20 => round 2 = 550/60; total = 1550/160
+        self.assertEqual(s2["usage"], {"input_tokens": 550, "output_tokens": 60})
+
+        calls = self.get_fake_calls()
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[2]["argv"][:3], ["exec", "resume", "t-corr"])
+        self.assertIn("failed validation", calls[2]["argv"][-1])
+        self.assertIn("deferred: <reason>", calls[2]["argv"][-1])
+
+        rcpt = json.loads(self.run_cli("receipt", "--session", s1["session"]).stdout)
+        self.assertEqual(rcpt["usage_total"], {"input_tokens": 1550, "output_tokens": 160})
+        self.assertTrue(rcpt["usage_complete"])
+
+        # 3. Persistent contradictory APPROVE even after corrective retry -> coerced conservatively to CHANGES (not blocked!)
+        self.set_fake_responses([
+            {
+                "jsonl": [{"type": "thread.started", "thread_id": "t-stubborn"}],
+                "output": "VERDICT: CHANGES\nS1 [blocker] app.py:1 Bug. Fix: fix.\nS3 [should] app.py:2 Check.\n",
+            },
+            {"jsonl": [], "output": "S1 still open: unverified\nS3 still open: manual\nVERDICT: APPROVE\n"},
+            {"jsonl": [], "output": "S1 still open: unverified\nS3 still open: manual\nVERDICT: APPROVE\n"},
+        ])
+        c1 = json.loads(
+            self.run_cli(
+                "start", "--repo", self.repo, "--base", self.base,
+                "--intent", "Stubborn contradiction", "--checks", "ok", "--codex-bin", self.fake_codex,
+            ).stdout
+        )
+        c2 = json.loads(
+            self.run_cli("reply", "--session", c1["session"], "--ledger", "S1 fixed; S3 declined").stdout
+        )
+        self.assertEqual(c2["status"], "ok")
+        self.assertEqual(c2["mode"], "resume")
+        self.assertTrue(c2["retried"])
+        self.assertEqual(c2["verdict"], "CHANGES")
+        self.assertTrue(c2["verdict_coerced"])
+        self.assertIn("treated conservatively as CHANGES", c2["verdict_warning"])
+        self.assertIn("S1 still open: unverified", c2["findings"])
+        self.assertEqual(c2["findings_summary"]["still_open"], 2)
+
+        rcpt_c = json.loads(self.run_cli("receipt", "--session", c1["session"]).stdout)
+        self.assertEqual(rcpt_c["status"], "ok")
+        self.assertEqual(rcpt_c["final_verdict"], "CHANGES")
+        self.assertTrue(rcpt_c["rounds"][1]["verdict_coerced"])
 
     def test_unavailable_errors_fail_fast_without_retry(self) -> None:
         # Missing binary

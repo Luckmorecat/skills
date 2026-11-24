@@ -43,22 +43,42 @@ VERDICT_LINE_RE = re.compile(
     re.IGNORECASE,
 )
 LIST_PREFIX_RE = r"(?:(?:[-*+]|\d+[.)])\s+)?"
+ID_GROUP_RE = (
+    r"(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?"
+    r"(?:\s*(?:,\s*and\b|,|\band\b)\s*(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?)*"
+)
 FINDING_LINE_RE = re.compile(
     rf"^\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?\s+\[(blocker|should|nit)\](?:\s|:|$)",
     re.IGNORECASE,
 )
 RESOLVED_LINE_RE = re.compile(
-    rf"^\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?resolved\b",
+    rf"^(?P<head>\s*{LIST_PREFIX_RE}{ID_GROUP_RE}"
+    r"(?:\s+\[(?:blocker|should|nit)\])?)"
+    r"\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?resolved\b",
+    re.IGNORECASE,
+)
+DEFERRED_LINE_RE = re.compile(
+    rf"^(?P<head>\s*{LIST_PREFIX_RE}{ID_GROUP_RE}"
+    r"(?:\s+\[(?:blocker|should|nit)\])?)"
+    r"\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?(?:deferred|declined|waived)\b",
     re.IGNORECASE,
 )
 STILL_OPEN_LINE_RE = re.compile(
-    rf"^(?P<head>\s*{LIST_PREFIX_RE}(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?"
-    r"(?:\s*(?:,\s*and\b|,|\band\b)\s*(?:\*\*|__|`+)?[SR]\d+(?:\*\*|__|`+)?)*"
+    rf"^(?P<head>\s*{LIST_PREFIX_RE}{ID_GROUP_RE}"
     r"(?:\s+\[(?:blocker|should|nit)\])?)"
     r"\s*(?:[:—–-]\s*)?(?:\*\*|__|`+)?still\s+open\b",
     re.IGNORECASE,
 )
 FINDING_ID_RE = re.compile(r"\b[SR]\d+\b", re.IGNORECASE)
+NIT_TAG_RE = re.compile(r"\[nit\]", re.IGNORECASE)
+
+CONTRADICTORY_APPROVE_ERR = (
+    "contradictory APPROVE verdict alongside blocker, should, or still-open findings"
+)
+CONTRADICTORY_COERCE_WARNING = (
+    "Sol returned APPROVE alongside blocker, should, or still-open findings even after format retry; "
+    "treated conservatively as CHANGES"
+)
 
 UNAVAILABLE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
@@ -547,7 +567,7 @@ def build_round1_prompt(
         "- should = real bug callers will hit within intent, or missing proof for intended behavior.\n"
         "- nit = other paths, rare edge case, small perf, extra compat, style, or out-of-scope suggestion.\n\n"
         "Reply concisely (findings only; omit praise):\n"
-        "VERDICT: APPROVE or CHANGES\n"
+        "VERDICT: APPROVE or CHANGES (use APPROVE only when zero blocker or should findings exist)\n"
         "S1 [blocker|should|nit] <file>:<line> <claim>. Fix: <smallest suggestion>\n"
     )
 
@@ -576,9 +596,37 @@ def build_round_n_prompt(
         f"{inspect_block}\n\n"
         "Updated checks:\n"
         f"{checks}\n\n"
-        "Review open IDs and changed code only. Mark each open ID `resolved` or "
-        "`still open: <reason>`, report any new defect introduced by the fixes, "
-        "and end with `VERDICT: APPROVE` or `VERDICT: CHANGES`.\n"
+        "Review open IDs and changed code only. Mark each open ID one of:\n"
+        "- `resolved` (fixed or rebutted)\n"
+        "- `deferred: <reason>` (accepted decline, nit, or manual/out-of-scope follow-up that does not block approval)\n"
+        "- `still open: <reason>` (unresolved `blocker` or `should` that still blocks approval)\n\n"
+        "Report any new defect introduced by the fixes, and end with `VERDICT: APPROVE` "
+        "(only when zero `blocker`, `should`, or `still open` items remain) or `VERDICT: CHANGES` "
+        "(whenever any `blocker`, `should`, or `still open` item remains).\n"
+    )
+
+
+def build_validation_retry_note(parse_err: str) -> str:
+    return (
+        f"Format correction required (previous reply failed validation: {parse_err}):\n"
+        "- Use `resolved` for fixed or rebutted IDs.\n"
+        "- Use `deferred: <reason>` for accepted declines, nits, or manual/out-of-scope follow-ups that do not block approval.\n"
+        "- Use `still open: <reason>` only for unresolved `blocker` or `should` items that still block approval.\n"
+        "- End with `VERDICT: APPROVE` only when zero `blocker`, `should`, or `still open` items remain; "
+        "otherwise end with `VERDICT: CHANGES`.\n"
+    )
+
+
+def build_resume_correction_prompt(parse_err: str) -> str:
+    return (
+        f"Your previous reply failed validation: {parse_err}.\n"
+        "Re-emit only the corrected status lines, any new findings, and the final VERDICT line for this round "
+        "(do not re-run checks or expand scope):\n"
+        "- Use `resolved` for fixed or rebutted IDs.\n"
+        "- Use `deferred: <reason>` for accepted declines, nits, or manual/out-of-scope follow-ups that do not block approval.\n"
+        "- Use `still open: <reason>` only for unresolved `blocker` or `should` items that still block approval.\n"
+        "- End with `VERDICT: APPROVE` only when zero `blocker`, `should`, or `still open` items remain; "
+        "otherwise end with `VERDICT: CHANGES`.\n"
     )
 
 
@@ -716,11 +764,12 @@ def parse_review_response(text: str) -> tuple[str | None, dict[str, int], bool, 
     Ignores fenced code blocks when scanning for VERDICT lines.
     """
     stripped = text.strip()
+    empty_counts = {"blocker": 0, "should": 0, "nit": 0, "still_open": 0, "deferred": 0}
     if not stripped:
-        return None, {"blocker": 0, "should": 0, "nit": 0, "still_open": 0}, False, "empty review output"
+        return None, empty_counts, False, "empty review output"
 
     verdicts: set[str] = set()
-    counts = {"blocker": 0, "should": 0, "nit": 0, "still_open": 0}
+    counts = dict(empty_counts)
     in_fence = False
     unclassified_lines = 0
 
@@ -737,21 +786,30 @@ def parse_review_response(text: str) -> tuple[str | None, dict[str, int], bool, 
             verdicts.add(vm.group(1).upper())
             continue
 
+        if RESOLVED_LINE_RE.match(s):
+            continue
+
+        dm = DEFERRED_LINE_RE.match(s)
+        if dm:
+            counts["deferred"] += max(1, len(FINDING_ID_RE.findall(dm.group("head"))))
+            continue
+
         fm = FINDING_LINE_RE.match(s)
         if fm:
             sev = fm.group(1).lower()
             counts[sev] += 1
             sm = STILL_OPEN_LINE_RE.match(s)
-            if sm:
+            if sm and sev != "nit":
                 counts["still_open"] += max(1, len(FINDING_ID_RE.findall(sm.group("head"))))
             continue
 
         sm = STILL_OPEN_LINE_RE.match(s)
         if sm:
-            counts["still_open"] += max(1, len(FINDING_ID_RE.findall(sm.group("head"))))
-            continue
-
-        if RESOLVED_LINE_RE.match(s):
+            id_count = max(1, len(FINDING_ID_RE.findall(sm.group("head"))))
+            if NIT_TAG_RE.search(sm.group("head")):
+                counts["nit"] += id_count
+            else:
+                counts["still_open"] += id_count
             continue
 
         unclassified_lines += 1
@@ -763,12 +821,7 @@ def parse_review_response(text: str) -> tuple[str | None, dict[str, int], bool, 
 
     verdict = next(iter(verdicts))
     if verdict == "APPROVE" and (counts["blocker"] > 0 or counts["should"] > 0 or counts["still_open"] > 0):
-        return (
-            None,
-            counts,
-            False,
-            "contradictory APPROVE verdict alongside blocker, should, or still-open findings",
-        )
+        return None, counts, False, CONTRADICTORY_APPROVE_ERR
     nit_only = (
         verdict == "CHANGES"
         and counts["blocker"] == 0
@@ -961,9 +1014,16 @@ def run_codex_invocation(
     verdict, findings_summary, nit_only, parse_err = parse_review_response(response_text)
     if parse_err is not None or verdict is None:
         unavail = classify_unavailable_error(stderr_text, jsonl_errors)
+        is_format_error = unavail is None and bool(response_text.strip())
+        is_contradictory = is_format_error and parse_err == CONTRADICTORY_APPROVE_ERR
         return {
             "ok": False,
             "unavailable": unavail is not None,
+            "format_error": is_format_error,
+            "parse_error": parse_err,
+            "contradictory_approve": is_contradictory,
+            "findings_summary": findings_summary,
+            "findings": response_text.rstrip("\n"),
             "reason": unavail or summarize_error(proc.returncode, stderr_text, jsonl_errors, parse_err),
             "artifacts": artifacts,
             "thread_id": thread_id,
@@ -973,6 +1033,8 @@ def run_codex_invocation(
     return {
         "ok": True,
         "unavailable": False,
+        "format_error": False,
+        "contradictory_approve": False,
         "reason": None,
         "verdict": verdict,
         "findings_summary": findings_summary,
@@ -981,6 +1043,28 @@ def run_codex_invocation(
         "artifacts": artifacts,
         "thread_id": thread_id,
         "usage": usage,
+    }
+
+
+def coerce_contradictory_approve(result: dict[str, Any]) -> dict[str, Any]:
+    """Downgrade a persistent contradictory APPROVE + blocking items into a conservative CHANGES result."""
+    if result.get("ok") or not result.get("contradictory_approve"):
+        return result
+    return {
+        "ok": True,
+        "unavailable": False,
+        "format_error": False,
+        "contradictory_approve": False,
+        "reason": None,
+        "verdict": "CHANGES",
+        "verdict_coerced": True,
+        "verdict_warning": CONTRADICTORY_COERCE_WARNING,
+        "findings_summary": result["findings_summary"],
+        "nit_only": False,
+        "findings": result["findings"],
+        "artifacts": result["artifacts"],
+        "thread_id": result["thread_id"],
+        "usage": result["usage"],
     }
 
 
@@ -1240,6 +1324,12 @@ def cmd_start(args: argparse.Namespace) -> int:
     if not result["ok"] and not result["unavailable"]:
         retried = True
         first_reason = result["reason"]
+        retry_prompt_path = prompt_path
+        retry_prompt_text = prompt_text
+        if result.get("format_error") and result.get("parse_error"):
+            retry_prompt_text = f"{prompt_text.rstrip()}\n\n{build_validation_retry_note(result['parse_error'])}"
+            retry_prompt_path = os.path.join(session_dir, "r1-retry-prompt.txt")
+            atomic_write_text(retry_prompt_path, retry_prompt_text)
         archive_attempt_files(
             {k: v for k, v in result["artifacts"].items() if k != "prompt"},
             round_num=1,
@@ -1250,11 +1340,12 @@ def cmd_start(args: argparse.Namespace) -> int:
             repo_path=repo_path,
             session_dir=session_dir,
             round_num=1,
-            prompt_path=prompt_path,
-            prompt_text=prompt_text,
+            prompt_path=retry_prompt_path,
+            prompt_text=retry_prompt_text,
             resume_thread_id=None,
         )
         record_attempt_usage(attempt_usages, result, thread_totals)
+        result = coerce_contradictory_approve(result)
         if not result["ok"]:
             result["reason"] = f"attempt 1: {first_reason}; retry: {result['reason']}"
 
@@ -1287,7 +1378,7 @@ def cmd_start(args: argparse.Namespace) -> int:
     state["rounds_completed"] = 1
     state["status"] = "ok"
     state["blocker_reason"] = None
-    round_record = {
+    round_record: dict[str, Any] = {
         "round": 1,
         "mode": "fresh",
         "retried": retried,
@@ -1299,29 +1390,34 @@ def cmd_start(args: argparse.Namespace) -> int:
         "thread_id": result["thread_id"],
         "artifacts": result["artifacts"],
     }
+    if result.get("verdict_coerced"):
+        round_record["verdict_coerced"] = True
+        round_record["verdict_warning"] = result["verdict_warning"]
     state["rounds"].append(round_record)
     save_session_state(session_dir, state)
 
-    return emit_json(
-        {
-            "status": "ok",
-            "session": session_dir,
-            "round": 1,
-            "max_rounds": state["max_rounds"],
-            "extended_max_rounds": cfg["extended_max_rounds"],
-            "model": cfg["model"],
-            "effort": cfg["effort"],
-            "mode": "fresh",
-            "retried": retried,
-            "verdict": result["verdict"],
-            "findings_summary": result["findings_summary"],
-            "nit_only": result["nit_only"],
-            "usage": round_usage,
-            "diff_stat": initial_diff_stat,
-            "artifacts": result["artifacts"],
-            "findings": result["findings"],
-        }
-    )
+    payload: dict[str, Any] = {
+        "status": "ok",
+        "session": session_dir,
+        "round": 1,
+        "max_rounds": state["max_rounds"],
+        "extended_max_rounds": cfg["extended_max_rounds"],
+        "model": cfg["model"],
+        "effort": cfg["effort"],
+        "mode": "fresh",
+        "retried": retried,
+        "verdict": result["verdict"],
+        "findings_summary": result["findings_summary"],
+        "nit_only": result["nit_only"],
+        "usage": round_usage,
+        "diff_stat": initial_diff_stat,
+        "artifacts": result["artifacts"],
+        "findings": result["findings"],
+    }
+    if result.get("verdict_coerced"):
+        payload["verdict_coerced"] = True
+        payload["verdict_warning"] = result["verdict_warning"]
+    return emit_json(payload)
 
 
 def cmd_reply(args: argparse.Namespace) -> int:
@@ -1439,29 +1535,50 @@ def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
         record_attempt_usage(attempt_usages, result, thread_totals, resumed_thread_id=thread_id)
         if not result["ok"] and not result["unavailable"]:
             retried = True
-            mode = "resume-fallback"
             resume_reason = result["reason"]
             archive_attempt_files(
                 {k: v for k, v in result["artifacts"].items() if k != "prompt"},
                 round_num=next_round,
                 attempt_idx=1,
             )
-            combined_prompt = build_fresh_followup_prompt(state, prompt_text, after_resume_failure=True)
-            combined_path = os.path.join(session_dir, f"r{next_round}-fresh-prompt.txt")
-            atomic_write_text(combined_path, combined_prompt)
+            if result.get("format_error") and result.get("parse_error"):
+                # Thread is live; send a short format correction on the same resumed thread.
+                active_tid = result["thread_id"] or thread_id
+                correction_prompt = build_resume_correction_prompt(result["parse_error"])
+                correction_path = os.path.join(session_dir, f"r{next_round}-correction-prompt.txt")
+                atomic_write_text(correction_path, correction_prompt)
+                result = run_codex_invocation(
+                    cfg=cfg,
+                    repo_path=repo_path,
+                    session_dir=session_dir,
+                    round_num=next_round,
+                    prompt_path=correction_path,
+                    prompt_text=correction_prompt,
+                    resume_thread_id=active_tid,
+                )
+                record_attempt_usage(attempt_usages, result, thread_totals, resumed_thread_id=active_tid)
+                result = coerce_contradictory_approve(result)
+                if not result["ok"]:
+                    result["reason"] = f"attempt 1: {resume_reason}; format retry: {result['reason']}"
+            else:
+                mode = "resume-fallback"
+                combined_prompt = build_fresh_followup_prompt(state, prompt_text, after_resume_failure=True)
+                combined_path = os.path.join(session_dir, f"r{next_round}-fresh-prompt.txt")
+                atomic_write_text(combined_path, combined_prompt)
 
-            result = run_codex_invocation(
-                cfg=cfg,
-                repo_path=repo_path,
-                session_dir=session_dir,
-                round_num=next_round,
-                prompt_path=combined_path,
-                prompt_text=combined_prompt,
-                resume_thread_id=None,
-            )
-            record_attempt_usage(attempt_usages, result, thread_totals)
-            if not result["ok"]:
-                result["reason"] = f"resume failed ({resume_reason}); fresh thread failed ({result['reason']})"
+                result = run_codex_invocation(
+                    cfg=cfg,
+                    repo_path=repo_path,
+                    session_dir=session_dir,
+                    round_num=next_round,
+                    prompt_path=combined_path,
+                    prompt_text=combined_prompt,
+                    resume_thread_id=None,
+                )
+                record_attempt_usage(attempt_usages, result, thread_totals)
+                result = coerce_contradictory_approve(result)
+                if not result["ok"]:
+                    result["reason"] = f"resume failed ({resume_reason}); fresh thread failed ({result['reason']})"
     else:
         combined_prompt = build_fresh_followup_prompt(state, prompt_text, after_resume_failure=False)
         combined_path = os.path.join(session_dir, f"r{next_round}-fresh-prompt.txt")
@@ -1479,6 +1596,12 @@ def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
         if not result["ok"] and not result["unavailable"]:
             retried = True
             first_reason = result["reason"]
+            retry_path = combined_path
+            retry_prompt = combined_prompt
+            if result.get("format_error") and result.get("parse_error"):
+                retry_prompt = f"{combined_prompt.rstrip()}\n\n{build_validation_retry_note(result['parse_error'])}"
+                retry_path = os.path.join(session_dir, f"r{next_round}-fresh-retry-prompt.txt")
+                atomic_write_text(retry_path, retry_prompt)
             archive_attempt_files(
                 {k: v for k, v in result["artifacts"].items() if k != "prompt"},
                 round_num=next_round,
@@ -1489,11 +1612,12 @@ def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
                 repo_path=repo_path,
                 session_dir=session_dir,
                 round_num=next_round,
-                prompt_path=combined_path,
-                prompt_text=combined_prompt,
+                prompt_path=retry_path,
+                prompt_text=retry_prompt,
                 resume_thread_id=None,
             )
             record_attempt_usage(attempt_usages, result, thread_totals)
+            result = coerce_contradictory_approve(result)
             if not result["ok"]:
                 result["reason"] = f"attempt 1: {first_reason}; retry: {result['reason']}"
 
@@ -1532,7 +1656,7 @@ def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
     state["rounds_completed"] = next_round
     state["status"] = "ok"
     state["blocker_reason"] = None
-    round_record = {
+    round_record: dict[str, Any] = {
         "round": next_round,
         "mode": mode,
         "retried": retried,
@@ -1544,28 +1668,33 @@ def _run_reply_locked(session_dir: str, args: argparse.Namespace) -> int:
         "thread_id": state.get("thread_id"),
         "artifacts": result["artifacts"],
     }
+    if result.get("verdict_coerced"):
+        round_record["verdict_coerced"] = True
+        round_record["verdict_warning"] = result["verdict_warning"]
     state["rounds"].append(round_record)
     save_session_state(session_dir, state)
 
-    return emit_json(
-        {
-            "status": "ok",
-            "session": session_dir,
-            "round": next_round,
-            "max_rounds": state["max_rounds"],
-            "extended_max_rounds": cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]),
-            "model": cfg["model"],
-            "effort": cfg["effort"],
-            "mode": mode,
-            "retried": retried,
-            "verdict": result["verdict"],
-            "findings_summary": result["findings_summary"],
-            "nit_only": result["nit_only"],
-            "usage": round_usage,
-            "artifacts": result["artifacts"],
-            "findings": result["findings"],
-        }
-    )
+    payload: dict[str, Any] = {
+        "status": "ok",
+        "session": session_dir,
+        "round": next_round,
+        "max_rounds": state["max_rounds"],
+        "extended_max_rounds": cfg.get("extended_max_rounds", DEFAULT_CONFIG["extended_max_rounds"]),
+        "model": cfg["model"],
+        "effort": cfg["effort"],
+        "mode": mode,
+        "retried": retried,
+        "verdict": result["verdict"],
+        "findings_summary": result["findings_summary"],
+        "nit_only": result["nit_only"],
+        "usage": round_usage,
+        "artifacts": result["artifacts"],
+        "findings": result["findings"],
+    }
+    if result.get("verdict_coerced"):
+        payload["verdict_coerced"] = True
+        payload["verdict_warning"] = result["verdict_warning"]
+    return emit_json(payload)
 
 
 def cmd_receipt(args: argparse.Namespace) -> int:
@@ -1609,6 +1738,14 @@ def cmd_receipt(args: argparse.Namespace) -> int:
                     "verdict": r["verdict"],
                     "findings_summary": r["findings_summary"],
                     "nit_only": r["nit_only"],
+                    **(
+                        {
+                            "verdict_coerced": True,
+                            "verdict_warning": r.get("verdict_warning"),
+                        }
+                        if r.get("verdict_coerced")
+                        else {}
+                    ),
                     "usage": r["usage"],
                     "response": r["artifacts"]["response"],
                 }

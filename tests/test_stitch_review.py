@@ -270,7 +270,7 @@ class StitchReviewTestCase(unittest.TestCase):
         self.assertEqual(out1["round"], 1)
         self.assertEqual(out1["verdict"], "CHANGES")
         self.assertFalse(out1["nit_only"])
-        self.assertEqual(out1["findings_summary"], {"blocker": 0, "should": 1, "nit": 1, "still_open": 0})
+        self.assertEqual(out1["findings_summary"], {"blocker": 0, "should": 1, "nit": 1, "still_open": 0, "deferred": 0})
         self.assertEqual(out1["usage"], {"input_tokens": 1000, "output_tokens": 120})
 
         calls = self.get_fake_calls()
@@ -932,7 +932,7 @@ class StitchReviewTestCase(unittest.TestCase):
         self.assertEqual(r_contra["status"], "ok")
         self.assertTrue(r_contra["retried"])
         self.assertEqual(r_contra["verdict"], "CHANGES")
-        self.assertEqual(r_contra["findings_summary"], {"blocker": 1, "should": 0, "nit": 0, "still_open": 0})
+        self.assertEqual(r_contra["findings_summary"], {"blocker": 1, "should": 0, "nit": 0, "still_open": 0, "deferred": 0})
 
         # #1 & #3: fresh follow-up includes prior findings text AND clears stale thread_id when none returned
         self.set_fake_responses([
@@ -1498,8 +1498,80 @@ class StitchReviewTestCase(unittest.TestCase):
         self.assertIn("FALLBACK.md", skill_md)
         self.assertIn("bin/review", worker_md)
         self.assertIn("FALLBACK.md", worker_md)
-        for token in ("VERDICT: APPROVE", "VERDICT: CHANGES", "blocker", "should", "nit"):
+        for token in ("VERDICT: APPROVE", "VERDICT: CHANGES", "blocker", "should", "nit", "deferred:"):
             self.assertIn(token, fallback_md)
+
+    def test_deferred_status_and_resumed_contradiction_coercion(self) -> None:
+        # 1. deferred / declined / [nit] still open allow clean APPROVE
+        self.set_fake_responses([
+            {
+                "jsonl": [{"type": "thread.started", "thread_id": "t-def"}],
+                "output": "VERDICT: CHANGES\nR1 [should] app.py:1 Bug. Fix: fix.\nR2 [should] app.py:2 Manual check.\n",
+            },
+            {
+                "jsonl": [{"type": "thread.started", "thread_id": "t-def"}],
+                "output": (
+                    "R1 [should] resolved\n"
+                    "R2 [should] deferred: manual sandbox check accepted\n"
+                    "VERDICT: APPROVE\n"
+                ),
+            },
+        ])
+        r1 = json.loads(
+            self.run_cli(
+                "start", "--repo", self.repo, "--base", self.base, "--brief-file", self.brief_file,
+                "--owned-path", "app.py", "--evidence", "ok", "--codex-bin", self.fake_codex,
+            ).stdout
+        )
+        r2 = json.loads(
+            self.run_cli("reply", "--session", r1["session"], "--ledger", "R1 fixed; R2 declined").stdout
+        )
+        self.assertEqual(r2["status"], "ok")
+        self.assertFalse(r2["retried"])
+        self.assertEqual(r2["verdict"], "APPROVE")
+        self.assertEqual(r2["findings_summary"], {"blocker": 0, "should": 0, "nit": 0, "still_open": 0, "deferred": 1})
+
+        # 2. Persistent contradictory APPROVE retries on same resumed thread then coerces conservatively to CHANGES
+        self.set_fake_responses([
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-c"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 500, "output_tokens": 50}},
+                ],
+                "output": "VERDICT: CHANGES\nR1 [blocker] app.py:1 Bug. Fix: fix.\n",
+            },
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-c"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 700, "output_tokens": 70}},
+                ],
+                "output": "R1 still open: unverified\nVERDICT: APPROVE\n",
+            },
+            {
+                "jsonl": [
+                    {"type": "thread.started", "thread_id": "t-c"},
+                    {"type": "turn.completed", "usage": {"input_tokens": 800, "output_tokens": 80}},
+                ],
+                "output": "R1 still open: unverified\nVERDICT: APPROVE\n",
+            },
+        ])
+        c1 = json.loads(
+            self.run_cli(
+                "start", "--repo", self.repo, "--base", self.base, "--brief-file", self.brief_file,
+                "--owned-path", "app.py", "--evidence", "ok", "--codex-bin", self.fake_codex,
+            ).stdout
+        )
+        c2 = json.loads(
+            self.run_cli("reply", "--session", c1["session"], "--ledger", "R1 fixed").stdout
+        )
+        self.assertEqual(c2["status"], "ok")
+        self.assertEqual(c2["mode"], "resume")
+        self.assertTrue(c2["retried"])
+        self.assertEqual(c2["verdict"], "CHANGES")
+        self.assertTrue(c2["verdict_coerced"])
+        self.assertIn("treated conservatively as CHANGES", c2["verdict_warning"])
+        self.assertEqual(c2["usage"], {"input_tokens": 300, "output_tokens": 30})
+        self.assertEqual(self.get_fake_calls()[2]["argv"][:3], ["exec", "resume", "t-c"])
 
 
 if __name__ == "__main__":
